@@ -14,6 +14,8 @@ export const PURGE_SQL = [
   `DELETE FROM chat_presence WHERE seen < now() - interval '1 day'`,
   `DELETE FROM chat_users WHERE last_seen < now() - interval '${R.chatProfileInactiveMonths} months' AND (banned_until IS NULL OR banned_until < now())`,
   `DELETE FROM data_requests WHERE state = 'done' AND closed_at < now() - interval '${R.dataRequestDoneMonths} months'`,
+  `DELETE FROM access_suggestions WHERE state <> 'new' AND created_at < now() - interval '${R.ipHashDays} days'`,
+  `UPDATE access_suggestions SET ip_hash = '' WHERE ip_hash <> '' AND created_at < now() - interval '${R.ipHashDays} days'`,
   `DELETE FROM shelter_photos WHERE state = 'rejected' AND reviewed_at < now() - interval '7 days'`,
 ];
 

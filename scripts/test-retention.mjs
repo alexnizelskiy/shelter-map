@@ -21,6 +21,9 @@ await db.exec(`INSERT INTO data_requests (kind, contact, state, closed_at) VALUE
 await db.exec(`INSERT INTO shelter_photos (city_slug, shelter_id, mime, size, state, ip_hash, created_at, reviewed_at) VALUES ('c','a','image/jpeg',1,'rejected','z',${ago(30)},${ago(10)}), ('c','a','image/jpeg',1,'approved','z',${ago(120)},${ago(120)})`);
 await db.exec(`INSERT INTO admin_attempts (ip_hash, created_at) VALUES ('a', ${ago(10)}), ('b', ${ago(1)})`);
 
+await db.exec(`INSERT INTO access_suggestions (city_slug, shelter_id, field, value, state, ip_hash, created_at) VALUES
+  ('c','a','pets','yes','approved','h',${ago(100)}), ('c','a','pets','no','new','h',${ago(100)}), ('c','a','hours','24/7','new','h',${ago(1)})`);
+
 for (const stmt of PURGE_SQL) await db.exec(stmt);
 const q = async (sql) => (await db.query(sql)).rows;
 
@@ -35,4 +38,6 @@ t("обработанный запрос старше года удалён, о�
 t("отклонённое фото удалено, одобренное осталось", (await q("SELECT state FROM shelter_photos")).map((r) => r.state).join() === "approved");
 t("у одобренного фото хэш IP стёрт", (await q("SELECT ip_hash FROM shelter_photos"))[0]?.ip_hash === "");
 t("журнал входа админа старше 7 дней удалён", (await q("SELECT ip_hash FROM admin_attempts")).map((r) => r.ip_hash).join() === "b");
+t("старые обработанные предложения доступности удалены, необработанные остаются", (await q("SELECT value FROM access_suggestions ORDER BY value")).map((r) => r.value).join() === "24/7,no");
+t("у старого необработанного предложения хэш IP стёрт", (await q("SELECT ip_hash FROM access_suggestions WHERE value='no'"))[0]?.ip_hash === "");
 if (bad) process.exitCode = 1;

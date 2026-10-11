@@ -1,5 +1,5 @@
 import { connection } from "next/server";
-import { getShelters, type Shelter } from "./shelters";
+import { getShelters, type Shelter, type Tri } from "./shelters";
 import { SUGGEST_KIND_LABEL, type SuggestKind } from "./reports";
 import { dbConfigured, ensureSchema, sql } from "./db";
 
@@ -12,9 +12,10 @@ export async function loadShelters(citySlug: string, opts: { includeHidden?: boo
   if (!dbConfigured()) return base;
   try {
     await ensureSchema();
-    const [pub, hid] = await Promise.all([
+    const [pub, hid, acc] = await Promise.all([
       sql()<PubRow[]>`SELECT id::text, kind, address, lat, lng, note, source_url, object_type, placement, holder, capacity, origin, to_char(created_at, 'YYYY-MM-DD') AS day FROM published_shelters WHERE city_slug = ${citySlug} ORDER BY id`,
       sql()<{ shelter_id: string }[]>`SELECT shelter_id FROM shelter_overrides WHERE hidden`,
+      sql()<{ shelter_id: string; step_free: Tri | null; pets: Tri | null; hours: string | null }[]>`SELECT shelter_id, step_free, pets, hours FROM shelter_access`,
     ]);
     const extra: Shelter[] = pub.map((r) => ({
       id: `usr-${r.id}`,
@@ -31,7 +32,8 @@ export async function loadShelters(citySlug: string, opts: { includeHidden?: boo
       sourceUpdatedAt: r.day,
       sourceCheckedAt: r.day,
     }));
-    const all = [...base, ...extra];
+    const byAccess = new Map(acc.map((a) => [a.shelter_id, { stepFree: a.step_free ?? undefined, pets: a.pets ?? undefined, hours: a.hours ?? undefined }]));
+    const all = [...base, ...extra].map((s) => (byAccess.has(s.id) ? { ...s, access: byAccess.get(s.id) } : s));
     if (opts.includeHidden) return all;
     const hidden = new Set(hid.map((h) => h.shelter_id));
     return all.filter((s) => !hidden.has(s.id));

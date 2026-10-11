@@ -447,3 +447,19 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .consent input { margin-top: 2px; accent-color: var(--accent); flex: none; width: 18px; height: 18px; }
 .login-btns.locked { opacity: .45; pointer-events: none; filter: grayscale(.4); }
 .legal-link-row { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 8px 4px 0; font-size: calc(13px * var(--fs, 1)); }
+
+/* ───────── Доступность ───────── */
+.access { padding: 14px; margin: 10px 0; }
+.access h3 { margin: 0 0 8px; font-size: calc(15px * var(--fs, 1)); display: flex; gap: 8px; align-items: center; }
+.acc-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
+.acc-list li { display: flex; gap: 10px; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: calc(14px * var(--fs, 1)); }
+.acc-list li:last-child { border-bottom: 0; }
+.acc-list li > svg { color: var(--muted); flex: none; }
+.acc-list li > span { flex: 1; }
+.tri { font-size: calc(12.5px * var(--fs, 1)); padding: 2px 10px; border-radius: 999px; }
+.tri.yes { background: var(--accent-soft); color: var(--accent); }
+.tri.no { background: color-mix(in srgb, var(--danger) 16%, transparent); color: var(--danger); }
+.tri.unk { background: var(--field); color: var(--muted); font-weight: 500; }
+.filters { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 0; }
+.fchip { display: inline-flex; gap: 6px; align-items: center; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--glass-2); font: inherit; font-size: calc(13px * var(--fs, 1)); font-weight: 600; cursor: pointer; }
+.fchip.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }

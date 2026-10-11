@@ -154,6 +154,41 @@ export async function rejectPhoto(form: FormData) {
   revalidatePath("/admin");
 }
 
+// ───── доступность ─────
+const triOrNull = (v: FormDataEntryValue | null) => (v === "yes" || v === "no" ? v : null);
+
+export async function approveAccessSuggestion(form: FormData) {
+  await guard();
+  const id = Number(form.get("id"));
+  const [s] = await sql()<{ shelter_id: string; field: string; value: string; state: string }[]>`SELECT shelter_id, field, value, state FROM access_suggestions WHERE id = ${id}`;
+  if (!s || s.state !== "new") return;
+  if (s.field === "step_free") await sql()`INSERT INTO shelter_access (shelter_id, step_free) VALUES (${s.shelter_id}, ${s.value}) ON CONFLICT (shelter_id) DO UPDATE SET step_free = EXCLUDED.step_free, updated_at = now()`;
+  else if (s.field === "pets") await sql()`INSERT INTO shelter_access (shelter_id, pets) VALUES (${s.shelter_id}, ${s.value}) ON CONFLICT (shelter_id) DO UPDATE SET pets = EXCLUDED.pets, updated_at = now()`;
+  else if (s.field === "hours") await sql()`INSERT INTO shelter_access (shelter_id, hours) VALUES (${s.shelter_id}, ${s.value}) ON CONFLICT (shelter_id) DO UPDATE SET hours = EXCLUDED.hours, updated_at = now()`;
+  await sql()`UPDATE access_suggestions SET state = 'approved' WHERE id = ${id}`;
+  revalidatePath("/admin");
+}
+
+export async function rejectAccessSuggestion(form: FormData) {
+  await guard();
+  const id = Number(form.get("id"));
+  if (Number.isFinite(id)) await sql()`UPDATE access_suggestions SET state = 'rejected' WHERE id = ${id}`;
+  revalidatePath("/admin");
+}
+
+export async function setAccessManual(form: FormData) {
+  await guard();
+  const shelterId = clean(form.get("shelterId"), 32);
+  if (!shelterId) return;
+  const stepFree = triOrNull(form.get("stepFree"));
+  const pets = triOrNull(form.get("pets"));
+  const hours = clean(form.get("hours"), 80) || null;
+  if (!stepFree && !pets && !hours) await sql()`DELETE FROM shelter_access WHERE shelter_id = ${shelterId}`;
+  else await sql()`INSERT INTO shelter_access (shelter_id, step_free, pets, hours) VALUES (${shelterId}, ${stepFree}, ${pets}, ${hours})
+    ON CONFLICT (shelter_id) DO UPDATE SET step_free = EXCLUDED.step_free, pets = EXCLUDED.pets, hours = EXCLUDED.hours, updated_at = now()`;
+  revalidatePath("/admin");
+}
+
 export async function closeDataRequest(form: FormData) {
   await guard();
   const id = Number(form.get("id"));

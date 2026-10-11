@@ -13,11 +13,12 @@ import { AdminSkeleton } from "@/components/skeletons";
 import Cities from "./Cities";
 import Chat from "./Chat";
 import Requests from "./Requests";
+import Access from "./Access";
 import { operator } from "@/lib/operator";
 
 export const metadata: Metadata = { title: "Модерация", robots: { index: false, follow: false } };
 
-type SP = Promise<{ tab?: string }>;
+type SP = Promise<{ tab?: string; q?: string }>;
 
 export default function AdminPage({ searchParams }: { searchParams: SP }) {
   return (
@@ -29,7 +30,7 @@ export default function AdminPage({ searchParams }: { searchParams: SP }) {
   );
 }
 
-const TABS = [["new", "Заявки"], ["need_info", "Уточнение"], ["problems", "Жалобы"], ["hidden", "Скрытые"], ["photos", "Фото"], ["chat", "Чат"], ["requests", "Запросы"], ["done", "Обработанные"], ["cities", "Города и точки"]] as const;
+const TABS = [["new", "Заявки"], ["need_info", "Уточнение"], ["problems", "Жалобы"], ["hidden", "Скрытые"], ["photos", "Фото"], ["access", "Доступность"], ["chat", "Чат"], ["requests", "Запросы"], ["done", "Обработанные"], ["cities", "Города и точки"]] as const;
 
 async function Content({ searchParams }: { searchParams: SP }) {
   await connection();
@@ -38,18 +39,20 @@ async function Content({ searchParams }: { searchParams: SP }) {
   if (!(await isAdmin())) return <LoginForm />;
 
   await ensureSchema();
-  const tab = (await searchParams).tab ?? "new";
+  const sp = await searchParams;
+  const tab = sp.tab ?? "new";
   const cityList = await loadCities({ includeInactive: true });
   const all = (await Promise.all(cityList.map((c) => loadShelters(c.slug, { includeHidden: true })))).flat();
   const byId = new Map(all.map((s) => [s.id, s]));
 
-  const [cnt] = await sql()<{ n: number; ni: number; p: number; ph: number; rq: number }[]>`
+  const [cnt] = await sql()<{ n: number; ni: number; p: number; ph: number; rq: number; ac: number }[]>`
     SELECT (SELECT count(*) FROM suggestions WHERE state='new')::int AS n,
            (SELECT count(*) FROM suggestions WHERE state='need_info')::int AS ni,
            (SELECT count(DISTINCT shelter_id) FROM shelter_reports WHERE created_at > now() - interval '7 days' AND kind IN ('closed','not_found','wrong_info'))::int AS p,
            (SELECT count(*) FROM shelter_photos WHERE state='new')::int AS ph,
-           (SELECT count(*) FROM data_requests WHERE state='new')::int AS rq`;
-  const badge: Record<string, number> = { new: cnt.n, need_info: cnt.ni, problems: cnt.p, photos: cnt.ph, requests: cnt.rq };
+           (SELECT count(*) FROM data_requests WHERE state='new')::int AS rq,
+           (SELECT count(*) FROM access_suggestions WHERE state='new')::int AS ac`;
+  const badge: Record<string, number> = { new: cnt.n, need_info: cnt.ni, problems: cnt.p, photos: cnt.ph, requests: cnt.rq, access: cnt.ac };
 
   return (
     <>
@@ -67,7 +70,7 @@ async function Content({ searchParams }: { searchParams: SP }) {
           </a>
         ))}
       </nav>
-      {tab === "requests" ? <Requests /> : tab === "chat" ? <Chat /> : tab === "photos" ? <Photos byId={byId} /> : tab === "cities" ? <Cities /> : tab === "problems" ? <Problems byId={byId} /> : tab === "hidden" ? <Hidden byId={byId} /> : <Suggestions state={tab} all={all} />}
+      {tab === "access" ? <Access all={all} q={sp.q ?? ""} /> : tab === "requests" ? <Requests /> : tab === "chat" ? <Chat /> : tab === "photos" ? <Photos byId={byId} /> : tab === "cities" ? <Cities /> : tab === "problems" ? <Problems byId={byId} /> : tab === "hidden" ? <Hidden byId={byId} /> : <Suggestions state={tab} all={all} />}
     </>
   );
 }

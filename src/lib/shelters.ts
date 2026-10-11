@@ -2,6 +2,9 @@ import rostov from "../../data/rostov-na-donu.json";
 
 export type ShelterKind = "official_shelter" | "other_shelter" | "help_point" | "unknown";
 
+export type Tri = "yes" | "no";
+export type Access = { stepFree?: Tri; pets?: Tri; hours?: string };
+
 export type Shelter = {
   id: string;
   kind: ShelterKind;
@@ -14,6 +17,7 @@ export type Shelter = {
   lng: number;
   origin?: "official" | "community"; // community = добавлено по заявке жителя и проверено модератором
   sourceUrl?: string;
+  access?: Access; // доступность: подтверждённые сведения (если есть)
   sourceUpdatedAt: string; // дата обновления данных самим источником
   sourceCheckedAt: string; // когда мы сверили с источником
 };

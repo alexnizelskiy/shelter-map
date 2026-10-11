@@ -156,6 +156,27 @@ CREATE TABLE IF NOT EXISTS data_requests (
   closed_at  TIMESTAMPTZ
 );
 
+-- Доступность: подтверждённые сведения и предложения жителей (проходят проверку модератора)
+CREATE TABLE IF NOT EXISTS shelter_access (
+  shelter_id TEXT PRIMARY KEY,
+  step_free  TEXT CHECK (step_free IN ('yes','no')),
+  pets       TEXT CHECK (pets IN ('yes','no')),
+  hours      TEXT,
+  note       TEXT,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS access_suggestions (
+  id         BIGSERIAL PRIMARY KEY,
+  city_slug  TEXT NOT NULL,
+  shelter_id TEXT NOT NULL,
+  field      TEXT NOT NULL CHECK (field IN ('step_free','pets','hours')),
+  value      TEXT NOT NULL,
+  state      TEXT NOT NULL DEFAULT 'new' CHECK (state IN ('new','approved','rejected')),
+  ip_hash    TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS access_suggestions_idx ON access_suggestions (state, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS admin_attempts (
   id         BIGSERIAL PRIMARY KEY,
   ip_hash    TEXT NOT NULL,

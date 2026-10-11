@@ -6,7 +6,7 @@ import Link from "next/link";
 import {
   Building2, CalendarDays, ChevronRight, CircleAlert, DoorClosed, DoorOpen, Heart, Layers, LayoutGrid, Link2, List, LocateFixed,
   Map as MapIcon, MapPin, MapPinPlus, Minus, Navigation, Palette, Plus, Route, Search, SearchX, Settings, ShieldCheck, TriangleAlert,
-  Users, X, Clock, Info, ChevronDown, Car, Camera, MessageCircle, Volume2, VolumeX, ArrowUp, ArrowUpLeft, ArrowUpRight, CornerUpLeft, CornerUpRight, Undo2, RotateCw, Flag, Footprints, ListOrdered, type LucideIcon,
+  Users, X, Clock, Info, ChevronDown, Car, Camera, Accessibility, PawPrint, MessageCircle, Volume2, VolumeX, ArrowUp, ArrowUpLeft, ArrowUpRight, CornerUpLeft, CornerUpRight, Undo2, RotateCw, Flag, Footprints, ListOrdered, type LucideIcon,
 } from "lucide-react";
 import { compressImage } from "@/lib/image";
 import { KIND_LABEL, distanceKm, fmtDate, type Shelter } from "@/lib/shelters";
@@ -18,6 +18,7 @@ import AccessibilitySettings from "./AccessibilitySettings";
 import CitySearch from "./CitySearch";
 import LocationPrompt from "./LocationPrompt";
 import Checklist from "./Checklist";
+import AccessBlock from "./AccessBlock";
 import ChatPanel from "./ChatPanel";
 import Spinner from "./Spinner";
 import { useNavigation, type NavState, type Variant } from "@/lib/useNavigation";
@@ -93,6 +94,8 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
   const [tab, setTab] = useState<Tab>("map");
   const [selected, setSelected] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [fStep, setFStep] = useState(false);
+  const [fPets, setFPets] = useState(false);
   const [me, setMe] = useState<{ lat: number; lng: number } | null>(null);
   const [geoError, setGeoError] = useState(false);
   const [reports, setReports] = useState<ReportSummary[]>([]);
@@ -146,9 +149,11 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     const base = me ? byDistance(me) : shelters;
-    const found = q ? base.filter((s) => `${s.address} ${s.holder ?? ""}`.toLowerCase().includes(q)) : base;
+    let found = q ? base.filter((s) => `${s.address} ${s.holder ?? ""}`.toLowerCase().includes(q)) : base;
+    if (fStep) found = found.filter((s) => s.access?.stepFree === "yes");
+    if (fPets) found = found.filter((s) => s.access?.pets === "yes");
     return { total: found.length, items: found };
-  }, [query, me, byDistance, shelters]);
+  }, [query, me, byDistance, shelters, fStep, fPets]);
 
   const current = shelters.find((s) => s.id === selected) ?? null;
   const official = useMemo(() => shelters.filter((s) => s.origin !== "community"), [shelters]);
@@ -287,6 +292,11 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
                 <Search size={17} />
                 <input className="search" type="search" placeholder="Адрес или организация" value={query} onChange={(e) => setQuery(e.target.value)} />
               </div>
+              <div className="filters" role="group" aria-label="Фильтры">
+                <button className={fStep ? "fchip on" : "fchip"} aria-pressed={fStep} onClick={() => setFStep((v) => !v)}><Accessibility size={15} />Без ступеней</button>
+                <button className={fPets ? "fchip on" : "fchip"} aria-pressed={fPets} onClick={() => setFPets((v) => !v)}><PawPrint size={15} />С животными</button>
+              </div>
+              {(fStep || fPets) && <p className="note">Фильтры показывают только точки с подтверждёнными сведениями о доступности.</p>}
               <p className="note">
                 {visible.total === 0 ? "Ничего не найдено." : `Найдено: ${visible.total.toLocaleString("ru-RU")}${me ? " · по удалённости" : ""}`}
               </p>
@@ -531,6 +541,8 @@ function Passport({ citySlug, route, variantIdx, onVariant, onStartNav, routeBus
         </div>
         <p className="note" style={{ margin: "6px 0 0" }}>Маршрут ориентировочный: проверяйте обстановку и следуйте указаниям МЧС.</p>
       </div>
+
+      <AccessBlock key={s.id} s={s} citySlug={citySlug} />
 
       <Checklist autoOpen={!!route} />
 
