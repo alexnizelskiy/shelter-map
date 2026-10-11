@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { memo, useEffect, useMemo, useRef, useState, useCallback } from "react";
 import dynamic from "next/dynamic";
 import {
   Building2, CalendarDays, ChevronRight, CircleAlert, DoorClosed, DoorOpen, Heart, Layers, LayoutGrid, Link2, List, LocateFixed,
@@ -26,7 +26,6 @@ import { getBasemap } from "@/lib/basemaps";
 const CityMap = dynamic(() => import("./CityMap"), { ssr: false, loading: () => <div className="map-skel" aria-hidden="true" /> });
 
 type Tab = "map" | "list" | "chat" | "suggest" | "settings";
-const LIST_LIMIT = 100;
 const isNarrow = () => typeof window !== "undefined" && window.matchMedia("(max-width: 760px)").matches;
 
 const TABS: { key: Tab; label: string; Icon: LucideIcon }[] = [
@@ -66,6 +65,27 @@ const iconFor = (s: Shelter): { Icon: LucideIcon; cls: string } =>
   s.origin === "community"
     ? s.kind === "help_point" ? { Icon: Heart, cls: "ico-blue" } : { Icon: MapPin, cls: "ico-gray" }
     : { Icon: ShieldCheck, cls: "ico-green" };
+
+// Строка списка. memo: при выборе точки перерисовываются только две строки, а не все 1400.
+const ShelterRow = memo(function ShelterRow({ s, active, warn, dist, onPick }: { s: Shelter; active: boolean; warn: boolean; dist: number | null; onPick: (id: string) => void }) {
+  const { Icon, cls } = iconFor(s);
+  return (
+    <li>
+      <button className={active ? "row active" : "row"} onClick={() => onPick(s.id)}>
+        <span className={`ico ${warn ? "ico-amber" : cls}`}>{warn ? <TriangleAlert size={18} /> : <Icon size={18} />}</span>
+        <span className="row-main">
+          <b>{s.address}</b>
+          {s.holder && <span>{s.holder}</span>}
+          <small>
+            {s.capacity ? `до ${s.capacity} чел.` : title(s)}
+            {dist != null ? ` · ${dist.toFixed(1)} км` : ""}
+          </small>
+        </span>
+        <ChevronRight size={18} className="chev" />
+      </button>
+    </li>
+  );
+});
 
 export default function CityView({ city, shelters }: { city: City; shelters: Shelter[] }) {
   const [tab, setTab] = useState<Tab>("map");
@@ -113,7 +133,7 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
   }, []);
 
   const pick = useCallback((id: string) => { setSelected(id); setRoute(null); setNavActive(false); setRouteError(null); }, []);
-  const pickFromList = (id: string) => { setSelected(id); setRoute(null); setNavActive(false); setRouteError(null); if (isNarrow()) setTab("map"); };
+  const pickFromList = useCallback((id: string) => { setSelected(id); setRoute(null); setNavActive(false); setRouteError(null); if (isNarrow()) setTab("map"); }, []);
 
   const byDistance = useCallback(
     (pos: { lat: number; lng: number }) =>
@@ -125,7 +145,7 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
     const q = query.trim().toLowerCase();
     const base = me ? byDistance(me) : shelters;
     const found = q ? base.filter((s) => `${s.address} ${s.holder ?? ""}`.toLowerCase().includes(q)) : base;
-    return { total: found.length, items: found.slice(0, LIST_LIMIT) };
+    return { total: found.length, items: found };
   }, [query, me, byDistance, shelters]);
 
   const current = shelters.find((s) => s.id === selected) ?? null;
@@ -266,28 +286,12 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
                 <input className="search" type="search" placeholder="Адрес или организация" value={query} onChange={(e) => setQuery(e.target.value)} />
               </div>
               <p className="note">
-                {visible.total === 0 ? "Ничего не найдено." : `${visible.total > LIST_LIMIT ? `Показаны первые ${LIST_LIMIT}` : "Найдено"}${me ? " · по удалённости" : ""}`}
+                {visible.total === 0 ? "Ничего не найдено." : `Найдено: ${visible.total.toLocaleString("ru-RU")}${me ? " · по удалённости" : ""}`}
               </p>
               <ul className="list">
-                {visible.items.map((s) => {
-                  const { Icon, cls } = iconFor(s);
-                  return (
-                    <li key={s.id}>
-                      <button className={s.id === selected ? "row active" : "row"} onClick={() => pickFromList(s.id)}>
-                        <span className={`ico ${flagged.includes(s.id) ? "ico-amber" : cls}`}>{flagged.includes(s.id) ? <TriangleAlert size={18} /> : <Icon size={18} />}</span>
-                        <span className="row-main">
-                          <b>{s.address}</b>
-                          {s.holder && <span>{s.holder}</span>}
-                          <small>
-                            {s.capacity ? `до ${s.capacity} чел.` : title(s)}
-                            {me ? ` · ${distanceKm(me.lat, me.lng, s.lat, s.lng).toFixed(1)} км` : ""}
-                          </small>
-                        </span>
-                        <ChevronRight size={18} className="chev" />
-                      </button>
-                    </li>
-                  );
-                })}
+                {visible.items.map((s) => (
+                  <ShelterRow key={s.id} s={s} active={s.id === selected} warn={flagged.includes(s.id)} dist={me ? distanceKm(me.lat, me.lng, s.lat, s.lng) : null} onPick={pickFromList} />
+                ))}
               </ul>
             </>
           )}

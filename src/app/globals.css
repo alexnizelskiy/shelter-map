@@ -394,3 +394,6 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .nav-wait { display: flex; align-items: center; gap: 10px; }
 .nav-wait-row { display: inline-flex; align-items: center; gap: 8px; }
 .btn:disabled { opacity: .85; }
+
+/* Длинные списки: браузер не рисует строки вне экрана, но высоту резервирует */
+.list > li { content-visibility: auto; contain-intrinsic-size: auto 78px; }
