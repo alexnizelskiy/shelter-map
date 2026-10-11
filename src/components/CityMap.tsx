@@ -16,21 +16,31 @@ type Props = {
   selectedId?: string | null;
   onSelect?: (id: string) => void;
   me?: { lat: number; lng: number } | null;
+  flagged?: string[]; // точки, по которым жители сообщают о проблеме со входом
+  picking?: boolean; // режим выбора точки для новой заявки
+  picked?: { lat: number; lng: number } | null;
+  onPick?: (lat: number, lng: number) => void;
 };
 
 const SRC = "shelters";
-const KIND_COLOR = ["match", ["get", "kind"], "official_shelter", "#1f9d55", "other_shelter", "#1f9d55", "help_point", "#1b6ef3", "#8b93a1"];
+const KIND_COLOR = ["case", ["==", ["get", "flag"], 1], "#e0a100", ["match", ["get", "kind"], "official_shelter", "#1f9d55", "other_shelter", "#1f9d55", "help_point", "#1b6ef3", "#8b93a1"]];
 
-export default function CityMap({ center, zoom, shelters, selectedId, onSelect, me }: Props) {
+export default function CityMap({ center, zoom, shelters, selectedId, onSelect, me, flagged, picking, picked, onPick }: Props) {
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const ready = useRef(false);
   const onSelectRef = useRef(onSelect);
   const sheltersRef = useRef(shelters);
+  const flaggedRef = useRef<Set<string>>(new Set());
+  const pickingRef = useRef(false);
+  const onPickRef = useRef(onPick);
   useEffect(() => {
     onSelectRef.current = onSelect;
     sheltersRef.current = shelters;
-  }, [onSelect, shelters]);
+    flaggedRef.current = new Set(flagged ?? []);
+    pickingRef.current = !!picking;
+    onPickRef.current = onPick;
+  }, [onSelect, shelters, flagged, picking, onPick]);
 
   // инициализация карты, источника и слоёв
   useEffect(() => {
@@ -65,13 +75,14 @@ export default function CityMap({ center, zoom, shelters, selectedId, onSelect, 
         cluster: true,
         clusterRadius: 50,
         clusterMaxZoom: 15,
-        data: toGeoJSON(sheltersRef.current),
+        data: toGeoJSON(sheltersRef.current, flaggedRef.current),
       });
       m.addLayer({ id: "pts", type: "circle", source: SRC, filter: ["!", ["has", "point_count"]],
         paint: { "circle-radius": 7, "circle-color": KIND_COLOR as never, "circle-stroke-width": 2, "circle-stroke-color": "#fff" } });
       m.addLayer({ id: "sel", type: "circle", source: SRC, filter: ["==", ["get", "id"], ""],
         paint: { "circle-radius": 11, "circle-color": "#e5484d", "circle-stroke-width": 3, "circle-stroke-color": "#fff" } });
-      m.on("click", "pts", (e) => { const id = e.features?.[0]?.properties?.id; if (id) onSelectRef.current?.(id); });
+      m.on("click", (e) => { if (pickingRef.current) onPickRef.current?.(e.lngLat.lat, e.lngLat.lng); });
+      m.on("click", "pts", (e) => { if (pickingRef.current) return; const id = e.features?.[0]?.properties?.id; if (id) onSelectRef.current?.(id); });
       m.on("mouseenter", "pts", () => (m.getCanvas().style.cursor = "pointer"));
       m.on("mouseleave", "pts", () => (m.getCanvas().style.cursor = ""));
       m.on("render", syncClusters);
@@ -88,6 +99,28 @@ export default function CityMap({ center, zoom, shelters, selectedId, onSelect, 
     const s = shelters.find((x) => x.id === selectedId);
     if (s) m.flyTo({ center: [s.lng, s.lat], zoom: Math.max(m.getZoom(), 16) });
   }, [selectedId, shelters]);
+
+  // отметки жителей: перекрашиваем точки с предупреждением
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !ready.current) return;
+    (m.getSource(SRC) as maplibregl.GeoJSONSource | undefined)?.setData(toGeoJSON(shelters, new Set(flagged ?? [])));
+  }, [flagged, shelters]);
+
+  // режим выбора точки и выбранная точка новой заявки
+  useEffect(() => {
+    const m = map.current;
+    if (m) m.getCanvas().style.cursor = picking ? "crosshair" : "";
+  }, [picking]);
+
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !picked) return;
+    const node = document.createElement("div");
+    node.className = "pin-new";
+    const marker = new maplibregl.Marker({ element: node }).setLngLat([picked.lng, picked.lat]).addTo(m);
+    return () => { marker.remove(); };
+  }, [picked]);
 
   // позиция пользователя
   useEffect(() => {
@@ -110,13 +143,13 @@ export default function CityMap({ center, zoom, shelters, selectedId, onSelect, 
   return <div ref={el} className="map" />;
 }
 
-function toGeoJSON(list: Shelter[]): GeoJSON.FeatureCollection {
+function toGeoJSON(list: Shelter[], flagged: Set<string>): GeoJSON.FeatureCollection {
   return {
     type: "FeatureCollection",
     features: list.map((s) => ({
       type: "Feature",
       geometry: { type: "Point", coordinates: [s.lng, s.lat] },
-      properties: { id: s.id, kind: s.kind },
+      properties: { id: s.id, kind: s.kind, flag: flagged.has(s.id) ? 1 : 0 },
     })),
   };
 }
