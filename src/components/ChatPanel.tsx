@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CornerUpLeft, Flag, LogOut, Send, Smile, Trash2, Users, X, MapPin, ChevronDown, Clock } from "lucide-react";
+import Link from "next/link";
+import { CornerUpLeft, Flag, LogOut, Send, Smile, Trash2, UserX, Users, X, MapPin, ChevronDown, Clock } from "lucide-react";
 import { CHAT_MAX_LEN, REACTIONS } from "@/lib/chat-meta";
+import { LEGAL_VERSION } from "@/lib/legal-meta";
 import { ChatSkeleton } from "./skeletons";
 import Spinner from "./Spinner";
 
@@ -55,6 +57,8 @@ export default function ChatPanel({ room, cityName, returnPath, onPickCity }: { 
     return e ? "Не удалось войти. Попробуйте ещё раз или выберите другой способ." : null;
   });
   const [busy, setBusy] = useState(false);
+  // согласие хранится в cookie: её читает сервер при входе (в том числе после возврата из внешнего сервиса)
+  const [consent, setConsent] = useState(() => typeof document !== "undefined" && document.cookie.includes("chat_consent="));
   const [mini, setMini] = useState<Mini>(null);
   const list = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
@@ -84,7 +88,7 @@ export default function ChatPanel({ room, cityName, returnPath, onPickCity }: { 
 
   // виджет Telegram для обычного сайта
   const tgBot = process.env.NEXT_PUBLIC_TELEGRAM_BOT;
-  const needTgWidget = Boolean(data?.providers.telegram && !data?.me && !mini && tgBot);
+  const needTgWidget = Boolean(data?.providers.telegram && !data?.me && !mini && tgBot && consent);
   useEffect(() => {
     if (!needTgWidget || !tg.current || !tgBot) return;
     const host = tg.current;
@@ -148,6 +152,16 @@ export default function ChatPanel({ room, cityName, returnPath, onPickCity }: { 
     setActive(null);
   };
   const remove = async (id: number) => { await post("/api/chat/delete", { messageId: id }); setActive(null); load(); };
+  const giveConsent = (v: boolean) => {
+    setConsent(v);
+    document.cookie = v ? `chat_consent=${LEGAL_VERSION}; path=/; max-age=31536000; samesite=lax` : "chat_consent=; path=/; max-age=0";
+  };
+  const forget = async () => {
+    if (!window.confirm("Удалить ваш профиль, все ваши сообщения и реакции в чате? Это нельзя отменить.")) return;
+    const r = await post("/api/chat/forget", {});
+    setNote(r.ok ? "Профиль удалён." : r.error ?? "Не удалось удалить профиль.");
+    load();
+  };
   const logout = async () => { await post("/api/auth/logout", {}); load(); };
   const loginMini = async () => {
     if (!mini) return;
@@ -242,19 +256,25 @@ export default function ChatPanel({ room, cityName, returnPath, onPickCity }: { 
               <button className="send" aria-label="Отправить" disabled={busy || !text.trim()} onClick={send}>{busy ? <Spinner size={18} /> : <Send size={18} />}</button>
             </div>
           )}
-          <div className="who"><Avatar name={data.me.name} src={data.me.avatar} id={data.me.id} /><span>{data.me.name}</span><button onClick={logout}><LogOut size={14} />Выйти</button></div>
+          <div className="who"><Avatar name={data.me.name} src={data.me.avatar} id={data.me.id} /><span>{data.me.name}</span><button onClick={forget}><UserX size={14} />Удалить профиль</button><button onClick={logout}><LogOut size={14} />Выйти</button></div>
         </div>
       ) : (
         <div className="login" onClick={(e) => e.stopPropagation()}>
+          {canLogin && (
+            <label className="consent">
+              <input type="checkbox" checked={consent} onChange={(e) => giveConsent(e.target.checked)} />
+              <span>Согласен на обработку имени, первой буквы фамилии и аватара на условиях <Link href="/privacy" target="_blank">Политики</Link> и <Link href="/terms" target="_blank">Соглашения</Link>.</span>
+            </label>
+          )}
           {canLogin ? <p className="login-title">Выполните вход:</p> : <p className="note" style={{ textAlign: "center" }}>Вход пока не настроен администратором.</p>}
-          <div className="login-btns">
+          <div className={consent ? "login-btns" : "login-btns locked"} aria-disabled={!consent}>
             {p.yandex && <a className="lb yandex" href={`/api/auth/yandex/start?return=${ret}`}>Яндекс ID</a>}
             {p.vk && <a className="lb vk" href={`/api/auth/vk/start?return=${ret}`}>VK ID</a>}
             {p.max && (mini?.provider === "max" ? <button className="lb max" onClick={loginMini}>MAX</button> : process.env.NEXT_PUBLIC_MAX_APP_URL ? <a className="lb max" href={process.env.NEXT_PUBLIC_MAX_APP_URL}>MAX</a> : null)}
             {p.telegram && (mini?.provider === "telegram" ? <button className="lb tg" onClick={loginMini}>Telegram</button> : <div className="tg-widget" ref={tg} />)}
             {p.dev && <button className="lb dev" onClick={devLogin}>Тестовый вход</button>}
           </div>
-          <p className="login-cap">Читать могут все. Вход нужен, чтобы писать и ставить реакции. Показываем только имя и первую букву фамилии. <a href="/rules" target="_blank">Правила чата</a></p>
+          <p className="login-cap">Читать могут все. Вход нужен, чтобы писать и ставить реакции. Показываем только имя и первую букву фамилии. <Link href="/rules" target="_blank">Правила чата</Link></p>
         </div>
       )}
     </div>

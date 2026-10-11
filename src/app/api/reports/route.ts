@@ -3,6 +3,7 @@ import { loadShelters } from "@/lib/shelters-server";
 import { REPORT_KINDS, REPORT_TTL_HOURS, WARN_WINDOW_HOURS, type ReportKind, type ReportSummary } from "@/lib/reports";
 import { dbConfigured, ensureSchema, sql, SUMMARY_SQL, REPORT_LIMIT_SQL } from "@/lib/db";
 import { ipHash, json, readJson, clean } from "@/lib/api-utils";
+import { dailyMaintenance } from "@/lib/maintenance";
 
 // Сводка сообщений жителей по городу. Без БД возвращаем пустой список, чтобы карта работала.
 export async function GET(req: Request) {
@@ -11,6 +12,7 @@ export async function GET(req: Request) {
   if (!dbConfigured()) return json({ reports: [], enabled: false });
   try {
     await ensureSchema();
+    await dailyMaintenance().catch((e) => console.error("maintenance", e));
     const ids = (await loadShelters(city.slug)).map((s) => s.id);
     const rows = (await sql().unsafe(SUMMARY_SQL, [REPORT_TTL_HOURS, WARN_WINDOW_HOURS, ids] as never)) as unknown as ReportSummary[];
     return json({ reports: rows, enabled: true }, 200, { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60" });

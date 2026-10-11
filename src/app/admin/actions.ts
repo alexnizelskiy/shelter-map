@@ -154,6 +154,13 @@ export async function rejectPhoto(form: FormData) {
   revalidatePath("/admin");
 }
 
+export async function closeDataRequest(form: FormData) {
+  await guard();
+  const id = Number(form.get("id"));
+  if (Number.isFinite(id)) await sql()`UPDATE data_requests SET state = 'done', closed_at = now() WHERE id = ${id}`;
+  revalidatePath("/admin");
+}
+
 // ───── чат ─────
 export async function saveChatSettings(form: FormData) {
   await guard();

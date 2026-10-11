@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { CheckCircle2, LocateFixed, MapPin, Send } from "lucide-react";
+import Link from "next/link";
 import GlassSelect from "./GlassSelect";
 import Spinner from "./Spinner";
 import { BASIS_LABEL, SUGGEST_BASIS, SUGGEST_KIND_LABEL, SUGGEST_KINDS, type SuggestBasis, type SuggestKind } from "@/lib/reports";
@@ -109,7 +110,7 @@ export default function SuggestForm({ citySlug, draft, setDraft, onPickOnMap }: 
 
       <label className="check">
         <input type="checkbox" checked={draft.consent} onChange={(e) => set("consent", e.target.checked)} />
-        <span>Подтверждаю, что не указываю личные данные других людей. Понимаю, что заявка проходит проверку и может быть отклонена.</span>
+        <span>Подтверждаю, что не указываю личные данные других людей. Понимаю, что заявка проходит проверку и может быть отклонена. Согласен на обработку данных заявки на условиях <Link href="/privacy" target="_blank">Политики</Link>.</span>
       </label>
 
       {state.type === "error" && <p className="err">{state.text}</p>}

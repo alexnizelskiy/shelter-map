@@ -12,6 +12,8 @@ import LoginForm from "./LoginForm";
 import { AdminSkeleton } from "@/components/skeletons";
 import Cities from "./Cities";
 import Chat from "./Chat";
+import Requests from "./Requests";
+import { operator } from "@/lib/operator";
 
 export const metadata: Metadata = { title: "Модерация", robots: { index: false, follow: false } };
 
@@ -27,7 +29,7 @@ export default function AdminPage({ searchParams }: { searchParams: SP }) {
   );
 }
 
-const TABS = [["new", "Заявки"], ["need_info", "Уточнение"], ["problems", "Жалобы"], ["hidden", "Скрытые"], ["photos", "Фото"], ["chat", "Чат"], ["done", "Обработанные"], ["cities", "Города и точки"]] as const;
+const TABS = [["new", "Заявки"], ["need_info", "Уточнение"], ["problems", "Жалобы"], ["hidden", "Скрытые"], ["photos", "Фото"], ["chat", "Чат"], ["requests", "Запросы"], ["done", "Обработанные"], ["cities", "Города и точки"]] as const;
 
 async function Content({ searchParams }: { searchParams: SP }) {
   await connection();
@@ -41,12 +43,13 @@ async function Content({ searchParams }: { searchParams: SP }) {
   const all = (await Promise.all(cityList.map((c) => loadShelters(c.slug, { includeHidden: true })))).flat();
   const byId = new Map(all.map((s) => [s.id, s]));
 
-  const [cnt] = await sql()<{ n: number; ni: number; p: number; ph: number }[]>`
+  const [cnt] = await sql()<{ n: number; ni: number; p: number; ph: number; rq: number }[]>`
     SELECT (SELECT count(*) FROM suggestions WHERE state='new')::int AS n,
            (SELECT count(*) FROM suggestions WHERE state='need_info')::int AS ni,
            (SELECT count(DISTINCT shelter_id) FROM shelter_reports WHERE created_at > now() - interval '7 days' AND kind IN ('closed','not_found','wrong_info'))::int AS p,
-           (SELECT count(*) FROM shelter_photos WHERE state='new')::int AS ph`;
-  const badge: Record<string, number> = { new: cnt.n, need_info: cnt.ni, problems: cnt.p, photos: cnt.ph };
+           (SELECT count(*) FROM shelter_photos WHERE state='new')::int AS ph,
+           (SELECT count(*) FROM data_requests WHERE state='new')::int AS rq`;
+  const badge: Record<string, number> = { new: cnt.n, need_info: cnt.ni, problems: cnt.p, photos: cnt.ph, requests: cnt.rq };
 
   return (
     <>
@@ -54,6 +57,9 @@ async function Content({ searchParams }: { searchParams: SP }) {
         <h1>Модерация</h1>
         <form action={logout}><button className="btn-plain">Выйти</button></form>
       </header>
+      {operator().missing.length > 0 && (
+        <p className="warn" role="alert">В политике и соглашении не заполнены реквизиты оператора: {operator().missing.join(", ")}. Добавьте эти переменные в Vercel и сделайте Redeploy, пока сайт не опубликован.</p>
+      )}
       <nav className="adm-tabs">
         {TABS.map(([k, label]) => (
           <a key={k} href={`/admin?tab=${k}`} className={tab === k ? "on" : ""}>
@@ -61,7 +67,7 @@ async function Content({ searchParams }: { searchParams: SP }) {
           </a>
         ))}
       </nav>
-      {tab === "chat" ? <Chat /> : tab === "photos" ? <Photos byId={byId} /> : tab === "cities" ? <Cities /> : tab === "problems" ? <Problems byId={byId} /> : tab === "hidden" ? <Hidden byId={byId} /> : <Suggestions state={tab} all={all} />}
+      {tab === "requests" ? <Requests /> : tab === "chat" ? <Chat /> : tab === "photos" ? <Photos byId={byId} /> : tab === "cities" ? <Cities /> : tab === "problems" ? <Problems byId={byId} /> : tab === "hidden" ? <Hidden byId={byId} /> : <Suggestions state={tab} all={all} />}
     </>
   );
 }

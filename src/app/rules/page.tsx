@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { LegalLinks } from "@/components/LegalPage";
 
 export const metadata: Metadata = { title: "Правила чата" };
 
@@ -23,6 +24,7 @@ export default function Rules() {
         <li>На любое сообщение можно пожаловаться. Модератор может удалить сообщение и заблокировать автора.</li>
       </ul>
       <p className="note">Сообщения в чате — мнение пользователей, а не официальная информация. Следуйте оповещениям МЧС.</p>
+      <LegalLinks />
     </main>
   );
 }

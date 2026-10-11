@@ -2,6 +2,7 @@
 
 import { memo, useEffect, useMemo, useRef, useState, useCallback } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import {
   Building2, CalendarDays, ChevronRight, CircleAlert, DoorClosed, DoorOpen, Heart, Layers, LayoutGrid, Link2, List, LocateFixed,
   Map as MapIcon, MapPin, MapPinPlus, Minus, Navigation, Palette, Plus, Route, Search, SearchX, Settings, ShieldCheck, TriangleAlert,
@@ -320,6 +321,12 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
                 <p>Информация не гарантирует безопасность и доступность входа. Следуйте оповещениям МЧС.</p>
                 <p>Каталог населённых пунктов: GeoNames (CC BY 4.0). Карты: © Яндекс, © участники OpenStreetMap, Esri. Маршруты: OSRM.</p>
               </div>
+              <div className="legal-link-row">
+                <Link href="/privacy">Политика обработки данных</Link>
+                <Link href="/terms">Соглашение</Link>
+                <Link href="/rules">Правила чата</Link>
+                <Link href="/data-request">Запрос по данным</Link>
+              </div>
             </div>
           )}
         </section>
@@ -554,7 +561,7 @@ function Passport({ citySlug, route, variantIdx, onVariant, onStartNav, routeBus
             <img src={draft.url} alt="Предпросмотр" />
             <label className="check">
               <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
-              <span>Подтверждаю: снято с общедоступного места, на фото нет людей, лиц, номеров автомобилей, охраны, схем и планов объекта.</span>
+              <span>Подтверждаю: снято с общедоступного места, на фото нет людей, лиц, номеров автомобилей, охраны, схем и планов объекта. Согласен на обработку фото на условиях <Link href="/privacy" target="_blank">Политики</Link>.</span>
             </label>
             <div className="route-btns">
               <button className="btn" disabled={!agree || photoBusy} onClick={sendPhoto}>{photoBusy && <Spinner size={16} />}{photoBusy ? "Отправляем…" : "Отправить на проверку"}</button>

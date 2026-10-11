@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { cleanEnv } from "@/lib/env";
 import { safeReturn, siteOrigin } from "@/lib/chat-auth";
-import { loginIdentity, setSessionCookie } from "@/lib/chat-db";
+import { hasConsent, loginIdentity, setSessionCookie } from "@/lib/chat-db";
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -14,6 +14,7 @@ export async function GET(req: Request) {
   const origin = siteOrigin(req);
   const fail = (why: string) => NextResponse.redirect(`${origin}${back}${back.includes("?") ? "&" : "?"}login_error=${why}`);
 
+  if (!(await hasConsent())) return fail("consent");
   // результат приходит в параметре payload (JSON) либо отдельными параметрами
   let code = url.searchParams.get("code");
   let state = url.searchParams.get("state");

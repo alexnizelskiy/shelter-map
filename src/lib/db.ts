@@ -116,6 +116,8 @@ CREATE TABLE IF NOT EXISTS chat_users (
   last_seen    TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (provider, ext_id)
 );
+ALTER TABLE chat_users ADD COLUMN IF NOT EXISTS consent_at TIMESTAMPTZ;
+ALTER TABLE chat_users ADD COLUMN IF NOT EXISTS consent_version TEXT;
 CREATE TABLE IF NOT EXISTS chat_messages (
   id         BIGSERIAL PRIMARY KEY,
   room       TEXT NOT NULL,
@@ -141,6 +143,18 @@ CREATE TABLE IF NOT EXISTS chat_reports (
 );
 CREATE TABLE IF NOT EXISTS chat_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS chat_presence (visitor TEXT PRIMARY KEY, seen TIMESTAMPTZ NOT NULL DEFAULT now());
+
+-- Запросы по персональным данным и объектам (удаление, исправление, отзыв согласия)
+CREATE TABLE IF NOT EXISTS data_requests (
+  id         BIGSERIAL PRIMARY KEY,
+  kind       TEXT NOT NULL,
+  contact    TEXT NOT NULL,
+  details    TEXT,
+  state      TEXT NOT NULL DEFAULT 'new' CHECK (state IN ('new','done')),
+  ip_hash    TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  closed_at  TIMESTAMPTZ
+);
 
 CREATE TABLE IF NOT EXISTS admin_attempts (
   id         BIGSERIAL PRIMARY KEY,

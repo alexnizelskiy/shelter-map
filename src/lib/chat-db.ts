@@ -1,5 +1,7 @@
 import { cookies } from "next/headers";
 import { ensureSchema, sql } from "./db";
+import { dailyMaintenance } from "./maintenance";
+import { LEGAL_VERSION } from "./operator";
 import { SESSION_COOKIE, cleanFirstName, lastInitial, makeSessionToken, readSessionToken, type Identity } from "./chat-auth";
 
 export type ChatUser = { id: number; firstName: string; lastInitial: string; avatar: string | null; role: string; bannedUntil: Date | null };
@@ -19,15 +21,21 @@ export async function currentUser(): Promise<ChatUser | null> {
 export const isBanned = (u: ChatUser) => Boolean(u.bannedUntil && u.bannedUntil.getTime() > Date.now());
 
 // Вход: создаём или обновляем пользователя. Фамилию не сохраняем, только первую букву.
+export const CONSENT_COOKIE = "chat_consent";
+// Согласие на обработку данных ставится в браузере до входа (галочка в чате); без него вход не выполняется
+export async function hasConsent(): Promise<boolean> {
+  return Boolean((await cookies()).get(CONSENT_COOKIE)?.value);
+}
+
 export async function loginIdentity(i: Identity): Promise<{ id: number; cookie: { value: string; maxAge: number } }> {
   await ensureSchema();
   const first = cleanFirstName(i.firstName);
   const initial = lastInitial(i.lastName);
   const avatar = i.avatar && /^https:\/\//i.test(i.avatar) ? i.avatar.slice(0, 500) : null;
   const [r] = await sql()<{ id: string }[]>`
-    INSERT INTO chat_users (provider, ext_id, first_name, last_initial, avatar_url)
-    VALUES (${i.provider}, ${i.extId}, ${first}, ${initial}, ${avatar})
-    ON CONFLICT (provider, ext_id) DO UPDATE SET first_name = EXCLUDED.first_name, last_initial = EXCLUDED.last_initial, avatar_url = EXCLUDED.avatar_url, last_seen = now()
+    INSERT INTO chat_users (provider, ext_id, first_name, last_initial, avatar_url, consent_at, consent_version)
+    VALUES (${i.provider}, ${i.extId}, ${first}, ${initial}, ${avatar}, now(), ${LEGAL_VERSION})
+    ON CONFLICT (provider, ext_id) DO UPDATE SET first_name = EXCLUDED.first_name, last_initial = EXCLUDED.last_initial, avatar_url = EXCLUDED.avatar_url, last_seen = now(), consent_at = now(), consent_version = ${LEGAL_VERSION}
     RETURNING id::text`;
   const id = Number(r.id);
   return { id, cookie: makeSessionToken(id) };
@@ -50,6 +58,7 @@ export type ChatMeta = { enabled: boolean; clearHours: number; nextClearAt: numb
 
 // Очищает чат по расписанию: раз в N часов удаляются все сообщения. Выполняется лениво при обращении к чату.
 export async function maintainChat(): Promise<ChatMeta> {
+  await dailyMaintenance().catch((e) => console.error("maintenance", e));
   const clearHours = Number(await getSetting("clear_hours", String(DEFAULT_CLEAR_HOURS)));
   const enabled = (await getSetting("enabled", "1")) === "1";
   const lastRaw = await getSetting("last_clear_at", "");

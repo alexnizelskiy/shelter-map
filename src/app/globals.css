@@ -430,3 +430,20 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .segmented.fonts { grid-template-columns: repeat(4, 1fr); }
 .segmented.fonts .seg { font-size: calc(10.5px * min(var(--fs, 1), 1.15)); }
 .segmented.two { grid-template-columns: 1fr 1fr; }
+
+/* ───────── Юридические страницы ───────── */
+.legal { max-width: 760px; margin: 0 auto; padding: 24px 18px 80px; line-height: 1.6; min-height: 100%; overflow: auto; }
+.legal h1 { font-size: calc(28px * var(--fs, 1)); margin: 12px 0 4px; }
+.legal h2 { font-size: calc(18px * var(--fs, 1)); margin: 26px 0 6px; }
+.legal p, .legal li { font-size: calc(15px * var(--fs, 1)); }
+.legal ul { padding-left: 20px; display: grid; gap: 6px; }
+.legal code { background: var(--field); padding: 1px 6px; border-radius: 6px; font-size: .9em; }
+.legal-back { display: inline-flex; gap: 6px; align-items: center; text-decoration: none; font-size: calc(14px * var(--fs, 1)); }
+.legal-links { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--line); font-size: calc(14px * var(--fs, 1)); }
+.missing { background: #ffe08a; color: #000; padding: 0 5px; border-radius: 5px; font-weight: 600; }
+.legal .form { margin-top: 16px; }
+
+.consent { display: flex; gap: 10px; align-items: flex-start; font-size: calc(12.5px * var(--fs, 1)); color: var(--muted); line-height: 1.4; }
+.consent input { margin-top: 2px; accent-color: var(--accent); flex: none; width: 18px; height: 18px; }
+.login-btns.locked { opacity: .45; pointer-events: none; filter: grayscale(.4); }
+.legal-link-row { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 8px 4px 0; font-size: calc(13px * var(--fs, 1)); }
