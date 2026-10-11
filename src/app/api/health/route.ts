@@ -1,7 +1,8 @@
 import { connection } from "next/server";
 import { json } from "@/lib/api-utils";
 import { cleanEnv } from "@/lib/env";
-import { dbConfigured, ensureSchema, sql } from "@/lib/db";
+import { dbConfigured, dbParsed, dbRaw, ensureSchema, sql } from "@/lib/db";
+import { describeDbRaw } from "@/lib/db-url";
 
 // Диагностика без секретов: что настроено и доходит ли сервер до базы. Показываем только код ошибки, без адресов.
 export async function GET() {
@@ -12,11 +13,20 @@ export async function GET() {
     tilesKey: cleanEnv(process.env.NEXT_PUBLIC_TILES_URL, "NEXT_PUBLIC_TILES_URL").length > 0,
   };
   if (!dbConfigured()) return json({ db: "not_configured", hint: "Задайте DATABASE_URL в переменных окружения Vercel и сделайте Redeploy.", ...flags });
+  const parsed = dbParsed();
+  if (!parsed) {
+    return json({
+      db: "error", code: "BAD_DATABASE_URL",
+      hint: "Не удалось найти в DATABASE_URL хост, пользователя и базу. Формат: postgresql://пользователь:пароль@хост:5432/база. Подойдёт и блок «host: …, port: …, user: …, password: …, database: …».",
+      urlShape: describeDbRaw(dbRaw()),
+      ...flags,
+    });
+  }
   try {
     const t = Date.now();
     await ensureSchema();
     await sql()`SELECT 1`;
-    return json({ db: "ok", ms: Date.now() - t, ...flags });
+    return json({ db: "ok", ms: Date.now() - t, host: parsed.host.replace(/^(.{3}).*(.{3})$/, "$1…$2"), ...flags });
   } catch (e) {
     const code = (e as { code?: string; name?: string }).code ?? (e as Error).name ?? "unknown";
     const hints: Record<string, string> = {

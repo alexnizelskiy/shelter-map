@@ -1,13 +1,15 @@
 import postgres from "postgres";
 import { cleanEnv } from "./env";
-import { parseDbUrl } from "./db-url";
+import { parseDbConfig } from "./db-url";
 
-const dbUrl = () => cleanEnv(process.env.DATABASE_URL, "DATABASE_URL", true);
+// Сырое значение (кавычки по краям убираем, внутренние пробелы и переводы строк оставляем: это может быть блок «host: …»)
+export const dbRaw = () => cleanEnv(process.env.DATABASE_URL, "DATABASE_URL") || cleanEnv(process.env.POSTGRES_URL, "POSTGRES_URL") || cleanEnv(process.env.POSTGRES_URL_NON_POOLING, "POSTGRES_URL_NON_POOLING");
+export const dbParsed = () => parseDbConfig(dbRaw(), process.env);
 
 // Клиент и промис схемы хранятся в globalThis: в dev-режиме модули пересоздаются на каждый маршрут, а пул должен быть один.
 const g = globalThis as unknown as { __pg?: ReturnType<typeof postgres>; __pgReady?: Promise<void> | null };
 
-export const dbConfigured = () => Boolean(dbUrl());
+export const dbConfigured = () => Boolean(dbRaw() || process.env.PGHOST);
 
 export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS shelter_reports (
@@ -135,7 +137,7 @@ SELECT count(*)::int AS n FROM suggestions WHERE ip_hash = $1 AND created_at > n
 
 export function sql() {
   if (!g.__pg) {
-    const cfg = parseDbUrl(dbUrl());
+    const cfg = dbParsed();
     if (!cfg) throw Object.assign(new Error("Не удалось разобрать DATABASE_URL"), { code: "BAD_DATABASE_URL" });
     const noSsl = cleanEnv(process.env.DATABASE_SSL) === "disable" || cfg.sslmode === "disable";
     g.__pg = postgres({
