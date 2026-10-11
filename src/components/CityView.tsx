@@ -6,7 +6,7 @@ import Link from "next/link";
 import {
   Building2, CalendarDays, ChevronRight, CircleAlert, DoorClosed, DoorOpen, Heart, Layers, LayoutGrid, Link2, List, LocateFixed,
   Map as MapIcon, MapPin, MapPinPlus, Minus, Navigation, Palette, Plus, Route, Search, SearchX, Settings, ShieldCheck, TriangleAlert,
-  Users, X, Clock, Info, ChevronDown, Car, Camera, Accessibility, PawPrint, MessageCircle, Volume2, VolumeX, ArrowUp, ArrowUpLeft, ArrowUpRight, CornerUpLeft, CornerUpRight, Undo2, RotateCw, Flag, Footprints, ListOrdered, type LucideIcon,
+  Users, X, Clock, Info, ChevronDown, Car, Camera, Siren, Accessibility, PawPrint, MessageCircle, Volume2, VolumeX, ArrowUp, ArrowUpLeft, ArrowUpRight, CornerUpLeft, CornerUpRight, Undo2, RotateCw, Flag, Footprints, ListOrdered, type LucideIcon,
 } from "lucide-react";
 import { compressImage } from "@/lib/image";
 import { KIND_LABEL, distanceKm, fmtDate, type Shelter } from "@/lib/shelters";
@@ -19,6 +19,7 @@ import CitySearch from "./CitySearch";
 import LocationPrompt from "./LocationPrompt";
 import Checklist from "./Checklist";
 import AccessBlock from "./AccessBlock";
+import MyShelterButton from "./MyShelterButton";
 import ChatPanel from "./ChatPanel";
 import Spinner from "./Spinner";
 import { useNavigation, type NavState, type Variant } from "@/lib/useNavigation";
@@ -211,6 +212,40 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
   });
   const startNav = () => { setFollow(true); setNavActive(true); setTab("map"); };
   const stopNav = () => { setNavActive(false); setFollow(true); };
+
+  // ссылка из режима «Тревога» (?go=ID): выбираем укрытие, строим пеший маршрут и сразу включаем навигатор
+  const [goPending, setGoPending] = useState(false);
+  const goTarget = useRef<Shelter | null>(null);
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("go");
+    if (!id) return;
+    const t = setTimeout(() => {
+      const target = shelters.find((x) => x.id === id);
+      if (!target) return;
+      goTarget.current = target;
+      setSelected(target.id);
+      setTab("map");
+      setGoPending(true);
+      buildRoute(target, "foot");
+    }, 400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (!goPending || !route) return;
+    const t = setTimeout(() => { setGoPending(false); startNav(); }, 0);
+    return () => clearTimeout(t);
+  }, [goPending, route]);
+
+  // копия списка для режима «Тревога» без сети: обновляется раз в сутки
+  useEffect(() => {
+    const key = `alarm-cache:${city.slug}`;
+    try { const c = JSON.parse(localStorage.getItem(key) ?? "null"); if (c?.at && Date.now() - c.at < 86400_000) return; } catch {}
+    fetch(`/api/shelters?city=${city.slug}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (j) { try { localStorage.setItem(key, JSON.stringify({ name: j.city.name, shelters: j.shelters, at: j.at })); } catch {} } })
+      .catch(() => {});
+  }, [city.slug]);
   const zoom = (d: number) => window.dispatchEvent(new CustomEvent("map-zoom", { detail: d }));
 
   return (
@@ -243,6 +278,7 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
                 <button className="chip-city btn-like" onClick={() => setSearchOpen(true)} aria-label="Выбрать город"><MapPin size={14} />{city.name}<ChevronDown size={14} /></button>
               </div>
               <button className="primary" onClick={locate}><Navigation size={18} />Найти ближайшее</button>
+              <Link href="/alarm" className="alarm-btn"><Siren size={20} />Режим «Тревога»</Link>
               {geoError && <p className="note">Не удалось определить местоположение. Откройте список и выберите точку вручную.</p>}
               {shelters.length === 0 && (
                 <div className="card group">
@@ -362,6 +398,7 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
 
       {layersOpen && <div className="layers-pop glass"><BasemapSwitch compact /></div>}
       <div className="controls">
+        <Link href="/alarm" className="ctl-btn alarm-fab" aria-label="Режим тревоги"><Siren size={22} /></Link>
         <button className="ctl-btn glass" aria-label="Подложка карты" aria-expanded={layersOpen} onClick={() => setLayersOpen((v) => !v)}><Layers size={21} /></button>
         <div className="zoom glass">
           <button aria-label="Приблизить" onClick={() => zoom(1)}><Plus size={20} /></button>
@@ -482,6 +519,7 @@ function Passport({ citySlug, route, variantIdx, onVariant, onStartNav, routeBus
         <button className="icon-btn" aria-label="Закрыть" onClick={onClose}><X size={18} /></button>
       </div>
       <p className="passport-addr">{s.address}</p>
+      <MyShelterButton s={s} citySlug={citySlug} />
 
       <dl className="card rows">
         {rows.map(({ Icon, label, value }) => (
