@@ -24,12 +24,17 @@ type Props = {
   basemap: Basemap;
   fit?: [number, number, number, number]; // вписать карту в границы (для найденных мест)
   route?: [number, number][] | null; // линия маршрута [lng, lat][]
+  fitRoute?: boolean; // вписывать маршрут в экран (в режиме навигатора выключено)
+  alts?: [number, number][][]; // запасные варианты маршрута (серые линии)
+  navPos?: { lng: number; lat: number; heading: number | null } | null; // позиция в режиме навигатора
+  follow?: boolean; // камера следует за стрелкой
+  onUserMove?: () => void; // пользователь сам двинул карту
 };
 
 const SRC = "shelters";
 const KIND_COLOR = ["case", ["==", ["get", "flag"], 1], "#e0a100", ["match", ["get", "kind"], "official_shelter", "#1f9d55", "other_shelter", "#1f9d55", "help_point", "#1b6ef3", "#8b93a1"]];
 
-export default function CityMap({ center, zoom, shelters, selectedId, onSelect, me, flagged, picking, picked, onPick, basemap, fit, route }: Props) {
+export default function CityMap({ center, zoom, shelters, selectedId, onSelect, me, flagged, picking, picked, onPick, basemap, fit, route, fitRoute = true, alts, navPos, follow, onUserMove }: Props) {
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const ready = useRef(false);
@@ -37,6 +42,9 @@ export default function CityMap({ center, zoom, shelters, selectedId, onSelect, 
   const sheltersRef = useRef(shelters);
   const fitKey = fit?.join(",") ?? "";
   const fitRef = useRef(fit);
+  const onUserMoveRef = useRef(onUserMove);
+  const arrow = useRef<maplibregl.Marker | null>(null);
+  const navWas = useRef(false);
   const baseRef = useRef(basemap);
   const themeRef = useRef<() => void>(() => {});
   const flaggedRef = useRef<Set<string>>(new Set());
@@ -50,7 +58,8 @@ export default function CityMap({ center, zoom, shelters, selectedId, onSelect, 
     onPickRef.current = onPick;
     baseRef.current = basemap;
     fitRef.current = fit;
-  }, [onSelect, shelters, flagged, picking, onPick, basemap, fit]);
+    onUserMoveRef.current = onUserMove;
+  }, [onSelect, shelters, flagged, picking, onPick, basemap, fit, onUserMove]);
 
   // инициализация карты, источника и слоёв
   useEffect(() => {
@@ -113,6 +122,8 @@ export default function CityMap({ center, zoom, shelters, selectedId, onSelect, 
         paint: { "circle-radius": 7, "circle-color": KIND_COLOR as never, "circle-stroke-width": 2, "circle-stroke-color": "#fff" } });
       m.addLayer({ id: "sel", type: "circle", source: SRC, filter: ["==", ["get", "id"], ""],
         paint: { "circle-radius": 11, "circle-color": "#e5484d", "circle-stroke-width": 3, "circle-stroke-color": "#fff" } });
+      m.addSource("route-alt", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      m.addLayer({ id: "route-alt", type: "line", source: "route-alt", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#8b93a1", "line-width": 5, "line-opacity": 0.85 } });
       m.addSource("route", { type: "geojson", data: lineData(null) });
       m.addLayer({ id: "route-casing", type: "line", source: "route", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#ffffff", "line-width": 9, "line-opacity": 0.9 } });
       m.addLayer({ id: "route-line", type: "line", source: "route", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#2f7cf6", "line-width": 5 } });
@@ -121,6 +132,8 @@ export default function CityMap({ center, zoom, shelters, selectedId, onSelect, 
       m.on("mouseenter", "pts", () => (m.getCanvas().style.cursor = "pointer"));
       m.on("mouseleave", "pts", () => (m.getCanvas().style.cursor = ""));
       m.on("render", syncClusters);
+      m.on("dragstart", (e) => { if (e.originalEvent) onUserMoveRef.current?.(); });
+      m.on("zoomstart", (e) => { if (e.originalEvent) onUserMoveRef.current?.(); });
       ready.current = true;
     });
     return () => { ready.current = false; themeObserver.disconnect(); clusterMarkers.clear(); m.remove(); };
@@ -139,12 +152,49 @@ export default function CityMap({ center, zoom, shelters, selectedId, onSelect, 
     const m = map.current;
     if (!m || !ready.current) return;
     (m.getSource("route") as maplibregl.GeoJSONSource | undefined)?.setData(lineData(route ?? null));
-    if (route && route.length > 1) {
+    if (route && route.length > 1 && fitRoute) {
       const b = new maplibregl.LngLatBounds(route[0], route[0]);
       route.forEach((c) => b.extend(c));
       m.fitBounds(b, { padding: { top: 60, bottom: 120, left: isNarrowScreen() ? 40 : 440, right: 70 }, duration: 900, maxZoom: 17 });
     }
-  }, [route]);
+  }, [route, fitRoute]);
+
+  // запасные маршруты
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !ready.current) return;
+    (m.getSource("route-alt") as maplibregl.GeoJSONSource | undefined)?.setData({
+      type: "FeatureCollection",
+      features: (alts ?? []).filter((c) => c.length > 1).map((c) => ({ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: c } })),
+    });
+  }, [alts]);
+
+  // стрелка навигатора и камера, следующая за ней
+  useEffect(() => {
+    const m = map.current;
+    if (!m) return;
+    if (!navPos) {
+      arrow.current?.remove();
+      arrow.current = null;
+      if (navWas.current) { navWas.current = false; m.easeTo({ pitch: 0, bearing: 0, duration: 600 }); }
+      return;
+    }
+    navWas.current = true;
+    if (!arrow.current) {
+      const node = document.createElement("div");
+      node.className = "nav-arrow";
+      arrow.current = new maplibregl.Marker({ element: node, rotationAlignment: "map", pitchAlignment: "map" }).setLngLat([navPos.lng, navPos.lat]).addTo(m);
+    }
+    arrow.current.setLngLat([navPos.lng, navPos.lat]);
+    if (navPos.heading != null) arrow.current.setRotation(navPos.heading);
+    if (follow) {
+      const narrow = window.innerWidth <= 760;
+      m.easeTo({
+        center: [navPos.lng, navPos.lat], zoom: 17, pitch: 45, bearing: navPos.heading ?? m.getBearing(), duration: 700, essential: true,
+        padding: { top: narrow ? 150 : 130, bottom: narrow ? 200 : 120, left: 0, right: 0 },
+      });
+    }
+  }, [navPos, follow]);
 
   // подсветка выбранной точки и перелёт к ней
   useEffect(() => {

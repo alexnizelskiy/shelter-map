@@ -14,8 +14,9 @@ const TURN: Record<string, string> = {
 
 export function stepText(s: Step): string {
   const { type, modifier, exit } = s.maneuver;
-  const on = s.name ? ` на ${s.name}` : "";
-  const by = s.name ? ` по ${s.name}` : "";
+  // названия улиц приходят в именительном падеже, поэтому не склоняем: «Поверните направо — улица Ленина»
+  const on = s.name ? ` — ${s.name}` : "";
+  const by = s.name ? ` — ${s.name}` : "";
   if (type === "depart") return `Начните движение${by}`;
   if (type === "arrive") return "Вы прибыли к укрытию";
   if (type === "roundabout" || type === "rotary" || type === "roundabout turn") return `На кольце сверните на ${exit ?? 1}-й съезд${on}`;

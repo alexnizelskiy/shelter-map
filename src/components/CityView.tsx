@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import {
   Building2, CalendarDays, ChevronRight, CircleAlert, DoorClosed, DoorOpen, Heart, Layers, LayoutGrid, Link2, List, LocateFixed,
   Map as MapIcon, MapPin, MapPinPlus, Minus, Navigation, Palette, Plus, Route, Search, SearchX, Settings, ShieldCheck, TriangleAlert,
-  Users, X, Clock, Info, ChevronDown, Car, Camera, Footprints, ListOrdered, type LucideIcon,
+  Users, X, Clock, Info, ChevronDown, Car, Camera, Volume2, VolumeX, ArrowUp, ArrowUpLeft, ArrowUpRight, CornerUpLeft, CornerUpRight, Undo2, RotateCw, Flag, Footprints, ListOrdered, type LucideIcon,
 } from "lucide-react";
 import { compressImage } from "@/lib/image";
 import { KIND_LABEL, distanceKm, fmtDate, type Shelter } from "@/lib/shelters";
@@ -16,6 +16,8 @@ import ThemeSwitch from "./ThemeSwitch";
 import CitySearch from "./CitySearch";
 import LocationPrompt from "./LocationPrompt";
 import Checklist from "./Checklist";
+import { useNavigation, type NavState, type Variant } from "@/lib/useNavigation";
+import { formatClock, roundDist, type LngLat, type NavStep } from "@/lib/nav";
 import BasemapSwitch, { useBasemapId } from "./BasemapSwitch";
 import { getBasemap } from "@/lib/basemaps";
 
@@ -34,7 +36,22 @@ const TABS: { key: Tab; label: string; Icon: LucideIcon }[] = [
 
 const REPORT_ICON: Record<ReportKind, LucideIcon> = { open: DoorOpen, closed: DoorClosed, not_found: SearchX, wrong_info: CircleAlert };
 
-export type RouteInfo = { mode: "foot" | "car"; distance: number; duration: number; coords: [number, number][]; steps: { text: string; distance: number }[] };
+export type RouteInfo = { mode: "foot" | "car"; variants: Variant[]; at: number };
+
+function ManeuverIcon({ step, size }: { step: NavStep | null; size: number }) {
+  const props = { size, strokeWidth: 2.4 };
+  if (!step) return <ArrowUp {...props} />;
+  if (step.type === "arrive") return <Flag {...props} />;
+  if (step.type.includes("roundabout") || step.type === "rotary") return <RotateCw {...props} />;
+  switch (step.modifier) {
+    case "left": case "sharp left": return <CornerUpLeft {...props} />;
+    case "right": case "sharp right": return <CornerUpRight {...props} />;
+    case "slight left": return <ArrowUpLeft {...props} />;
+    case "slight right": return <ArrowUpRight {...props} />;
+    case "uturn": return <Undo2 {...props} />;
+    default: return <ArrowUp {...props} />;
+  }
+}
 const fmtDist = (m: number) => (m < 1000 ? `${m} м` : `${(m / 1000).toFixed(1).replace(".", ",")} км`);
 const fmtTime = (sec: number) => {
   const min = Math.max(1, Math.round(sec / 60));
@@ -61,6 +78,10 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
   const [layersOpen, setLayersOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [route, setRoute] = useState<RouteInfo | null>(null);
+  const [variantIdx, setVariantIdx] = useState(0);
+  const [navActive, setNavActive] = useState(false);
+  const [follow, setFollow] = useState(true);
+  const [voice, setVoice] = useState(false);
   const [routeBusy, setRouteBusy] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
 
@@ -81,8 +102,8 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
     setTab("suggest");
   }, []);
 
-  const pick = useCallback((id: string) => { setSelected(id); setRoute(null); setRouteError(null); }, []);
-  const pickFromList = (id: string) => { setSelected(id); setRoute(null); setRouteError(null); if (isNarrow()) setTab("map"); };
+  const pick = useCallback((id: string) => { setSelected(id); setRoute(null); setNavActive(false); setRouteError(null); }, []);
+  const pickFromList = (id: string) => { setSelected(id); setRoute(null); setNavActive(false); setRouteError(null); if (isNarrow()) setTab("map"); };
 
   const byDistance = useCallback(
     (pos: { lat: number; lng: number }) =>
@@ -114,22 +135,24 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
       () => { setGeoError(true); setTab("map"); },
     );
   };
-  const buildRoute = (target: Shelter, mode: "foot" | "car") => {
+  const buildRoute = (target: Shelter, mode: "foot" | "car", from?: LngLat) => {
     setRouteError(null);
-    setRouteBusy(true);
+    if (!from) setRouteBusy(true);
     const go = async (pos: { lat: number; lng: number }) => {
       try {
         const r = await fetch(`/api/route?from=${pos.lng},${pos.lat}&to=${target.lng},${target.lat}&mode=${mode}`);
         const j = await r.json();
         if (!r.ok) throw new Error(j.error ?? "Не удалось построить маршрут");
-        setMe(pos);
-        setRoute(j);
+        if (!from) setMe(pos);
+        setRoute({ mode, variants: j.routes, at: Date.now() });
+        setVariantIdx(0);
       } catch (e) {
         setRouteError(e instanceof Error ? e.message : "Не удалось построить маршрут");
       } finally {
         setRouteBusy(false);
       }
     };
+    if (from) return void go({ lat: from[1], lng: from[0] });
     if (me) return void go(me);
     navigator.geolocation.getCurrentPosition(
       (p) => go({ lat: p.coords.latitude, lng: p.coords.longitude }),
@@ -137,14 +160,30 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
       { enableHighAccuracy: true, timeout: 10000 },
     );
   };
+
+  // ───── навигатор ─────
+  const variant = route?.variants[variantIdx] ?? null;
+  const sim = typeof window !== "undefined" && window.location.search.includes("navsim");
+  const { nav, error: navError } = useNavigation({
+    active: navActive && !!variant,
+    variant,
+    mode: route?.mode ?? "foot",
+    voice,
+    sim,
+    onReroute: (pos) => { if (current && route) buildRoute(current, route.mode, pos); },
+  });
+  const startNav = () => { setFollow(true); setNavActive(true); setTab("map"); };
+  const stopNav = () => { setNavActive(false); setFollow(true); };
   const zoom = (d: number) => window.dispatchEvent(new CustomEvent("map-zoom", { detail: d }));
 
   return (
-    <div className="app">
+    <div className={navActive ? "app navigating" : "app"}>
       <CityMap
         center={city.center} zoom={city.zoom} shelters={shelters} selectedId={selected} onSelect={pick} me={me} flagged={flagged}
         picking={picking} picked={draft.lat != null && draft.lng != null ? { lat: draft.lat, lng: draft.lng } : null} onPick={onMapPick}
-        basemap={basemap} fit={city.fit} route={route?.coords ?? null}
+        basemap={basemap} fit={city.fit} route={nav ? nav.line : variant?.coords ?? null} fitRoute={!navActive}
+        alts={route && !navActive ? route.variants.filter((_, i) => i !== variantIdx).map((v) => v.coords) : []}
+        navPos={nav ? { lng: nav.pos[0], lat: nav.pos[1], heading: nav.heading } : null} follow={navActive && follow} onUserMove={() => { if (navActive) setFollow(false); }}
       />
 
       {picking && (
@@ -276,7 +315,12 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
       </aside>
 
       {current && !picking && (
-        <Passport key={current.id} citySlug={city.slug} route={route} routeBusy={routeBusy} routeError={routeError} onRoute={(m) => buildRoute(current, m)} onClearRoute={() => { setRoute(null); setRouteError(null); }} s={current} me={me} summary={currentReport} onSent={loadReports} onClose={() => setSelected(null)} hideOnNarrow={tab !== "map"} />
+        <Passport key={current.id} citySlug={city.slug} route={route} variantIdx={variantIdx} onVariant={setVariantIdx} onStartNav={startNav} routeBusy={routeBusy} routeError={routeError} onRoute={(m) => buildRoute(current, m)} onClearRoute={() => { setRoute(null); setRouteError(null); }} s={current} me={me} summary={currentReport} onSent={loadReports} onClose={() => setSelected(null)} hideOnNarrow={tab !== "map"} />
+      )}
+
+      {navActive && (
+        <NavOverlay nav={nav} error={navError} target={current} follow={follow} voice={voice} rerouting={!!nav?.offRoute}
+          onVoice={() => setVoice((v) => !v)} onRecenter={() => setFollow(true)} onStop={stopNav} />
       )}
 
       {layersOpen && <div className="layers-pop glass"><BasemapSwitch compact /></div>}
@@ -301,7 +345,7 @@ const ago = (iso: string) => {
 
 type PRow = { Icon: LucideIcon; label: string; value: React.ReactNode };
 
-function Passport({ citySlug, route, routeBusy, routeError, onRoute, onClearRoute, s, me, summary, onSent, onClose, hideOnNarrow }: { citySlug: string; route: RouteInfo | null; routeBusy: boolean; routeError: string | null; onRoute: (m: "foot" | "car") => void; onClearRoute: () => void; s: Shelter; me: { lat: number; lng: number } | null; summary: ReportSummary | null; onSent: () => void; onClose: () => void; hideOnNarrow: boolean }) {
+function Passport({ citySlug, route, variantIdx, onVariant, onStartNav, routeBusy, routeError, onRoute, onClearRoute, s, me, summary, onSent, onClose, hideOnNarrow }: { citySlug: string; route: RouteInfo | null; variantIdx: number; onVariant: (i: number) => void; onStartNav: () => void; routeBusy: boolean; routeError: string | null; onRoute: (m: "foot" | "car") => void; onClearRoute: () => void; s: Shelter; me: { lat: number; lng: number } | null; summary: ReportSummary | null; onSent: () => void; onClose: () => void; hideOnNarrow: boolean }) {
   const [sent, setSent] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const send = async (kind: ReportKind) => {
@@ -420,22 +464,40 @@ function Passport({ citySlug, route, routeBusy, routeError, onRoute, onClearRout
           </div>
         )}
         {routeError && <p className="err">{routeError}</p>}
-        {route && (
-          <>
-            <div className="route-sum">
-              <span className="ico ico-blue">{route.mode === "foot" ? <Footprints size={18} /> : <Car size={18} />}</span>
-              <div><b>{fmtDist(route.distance)} · {fmtTime(route.duration)}</b><small>{route.mode === "foot" ? "пешком" : "на машине"}, оценка по открытым данным OSM</small></div>
-              <button className="icon-btn" aria-label="Сбросить маршрут" onClick={onClearRoute}><X size={18} /></button>
-            </div>
-            <details className="steps">
-              <summary><ListOrdered size={15} />Пошаговый маршрут ({route.steps.length})</summary>
-              <ol>{route.steps.map((st, i) => <li key={i}>{st.text}{st.distance > 0 && <small> · {fmtDist(st.distance)}</small>}</li>)}</ol>
-            </details>
-            <div className="route-btns">
-              <button className="btn btn-ghost-wide" onClick={() => onRoute(route.mode === "foot" ? "car" : "foot")}>{route.mode === "foot" ? <><Car size={16} />На машине</> : <><Footprints size={16} />Пешком</>}</button>
-            </div>
-          </>
-        )}
+        {route && (() => {
+          const v = route.variants[variantIdx] ?? route.variants[0];
+          const arrival = new Date(route.at + v.duration * 1000);
+          return (
+            <>
+              <div className="route-sum">
+                <span className="ico ico-blue">{route.mode === "foot" ? <Footprints size={18} /> : <Car size={18} />}</span>
+                <div>
+                  <b>{fmtDist(v.distance)} · {fmtTime(v.duration)}</b>
+                  <small>{route.mode === "foot" ? "пешком" : "на машине"}, по открытым данным OSM</small>
+                </div>
+                <span className="chip data">прибытие {formatClock(arrival)}</span>
+                <button className="icon-btn" aria-label="Сбросить маршрут" onClick={onClearRoute}><X size={18} /></button>
+              </div>
+              {route.variants.length > 1 && (
+                <div className="segmented" role="radiogroup" aria-label="Вариант маршрута" style={{ gridTemplateColumns: `repeat(${route.variants.length}, 1fr)`, marginBottom: 10 }}>
+                  {route.variants.map((alt, i) => (
+                    <button key={i} role="radio" aria-checked={i === variantIdx} className={i === variantIdx ? "seg on" : "seg"} onClick={() => onVariant(i)}>
+                      {fmtTime(alt.duration)} · {fmtDist(alt.distance)}
+                    </button>
+                  ))}
+                </div>
+              )}
+              <button className="primary go" onClick={onStartNav}><Navigation size={20} />{route.mode === "foot" ? "Пошли" : "Поехали"}</button>
+              <details className="steps">
+                <summary><ListOrdered size={15} />Пошаговый маршрут ({v.steps.length})</summary>
+                <ol>{v.steps.map((st, i) => <li key={i}>{st.text}{st.distance > 0 && <small> · {fmtDist(st.distance)}</small>}</li>)}</ol>
+              </details>
+              <div className="route-btns">
+                <button className="btn btn-ghost-wide" onClick={() => onRoute(route.mode === "foot" ? "car" : "foot")}>{route.mode === "foot" ? <><Car size={16} />На машине</> : <><Footprints size={16} />Пешком</>}</button>
+              </div>
+            </>
+          );
+        })()}
         <div className="ext-links">
           <a target="_blank" rel="noreferrer" href={`https://yandex.ru/maps/?rtext=~${s.lat},${s.lng}&rtt=pd`}>Открыть в Яндекс.Картах</a>
           <a target="_blank" rel="noreferrer" href={`https://2gis.ru/routeSearch/rsType/pedestrian/to/${s.lng},${s.lat}`}>2ГИС</a>
@@ -488,5 +550,51 @@ function Passport({ citySlug, route, routeBusy, routeError, onRoute, onClearRout
         {s.origin === "community" ? "Точка добавлена по сообщению жителя и не подтверждена официальным источником." : "Данные взяты из списка администрации и могут устареть."} Вместимость и доступность входа не гарантируются.
       </p>
     </aside>
+  );
+}
+
+function NavOverlay({ nav, error, target, follow, voice, rerouting, onVoice, onRecenter, onStop }: {
+  nav: NavState | null; error: string | null; target: Shelter | null; follow: boolean; voice: boolean; rerouting: boolean;
+  onVoice: () => void; onRecenter: () => void; onStop: () => void;
+}) {
+  const next = nav?.next ?? null;
+  const mins = nav ? Math.max(1, Math.round(nav.remainingSec / 60)) : 0;
+  return (
+    <>
+      <div className="nav-top glass" role="status" aria-live="polite">
+        {!nav ? (
+          <p className="nav-wait">{error ?? "Определяем ваше местоположение…"}</p>
+        ) : nav.arrived ? (
+          <>
+            <span className="nav-ico done"><Flag size={30} /></span>
+            <div className="nav-main"><b className="nav-dist">Вы прибыли</b><span>{target?.address}</span></div>
+          </>
+        ) : (
+          <>
+            <span className="nav-ico"><ManeuverIcon step={next} size={34} /></span>
+            <div className="nav-main">
+              <b className="nav-dist">{next && next.type !== "arrive" ? roundDist(nav.distToNext) : roundDist(nav.remaining)}</b>
+              <span>{rerouting ? "Пересчитываем маршрут…" : next?.text ?? "Двигайтесь по маршруту"}</span>
+              {!rerouting && nav.then && next?.type !== "arrive" && nav.then.text !== next?.text && <small>Затем: {nav.then.text}</small>}
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="nav-bottom glass">
+        <div className="nav-eta">
+          {nav ? (
+            <>
+              <b>{mins} мин</b>
+              <span>{roundDist(nav.remaining)} · прибытие {formatClock(nav.arrival)}</span>
+              <small>{target?.address}</small>
+            </>
+          ) : <span>{error ?? "Ждём сигнал GPS…"}</span>}
+        </div>
+        <button className="icon-btn big" aria-label={voice ? "Выключить голос" : "Включить голос"} aria-pressed={voice} onClick={onVoice}>{voice ? <Volume2 size={20} /> : <VolumeX size={20} />}</button>
+        {!follow && <button className="icon-btn big accent" aria-label="Вернуться к моей позиции" onClick={onRecenter}><LocateFixed size={20} /></button>}
+        <button className="icon-btn big" aria-label="Завершить навигацию" onClick={onStop}><X size={20} /></button>
+      </div>
+    </>
   );
 }

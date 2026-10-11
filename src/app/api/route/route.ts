@@ -27,20 +27,29 @@ export async function GET(req: Request) {
   if (km(from, to) > MAX_KM[mode]) return json({ error: mode === "foot" ? "Слишком далеко для пешего маршрута" : "Слишком далеко" }, 422);
 
   try {
-    const url = `${BASE[mode]}/${from.lng.toFixed(6)},${from.lat.toFixed(6)};${to.lng.toFixed(6)},${to.lat.toFixed(6)}?overview=full&geometries=geojson&steps=true`;
+    const url = `${BASE[mode]}/${from.lng.toFixed(6)},${from.lat.toFixed(6)};${to.lng.toFixed(6)},${to.lat.toFixed(6)}?overview=full&geometries=geojson&steps=true&alternatives=true`;
     const r = await fetch(url, { headers: { "User-Agent": "shelter-map/0.1 (+routing proxy)" }, signal: AbortSignal.timeout(12000) });
     const d = await r.json();
-    const route = d?.routes?.[0];
-    if (!r.ok || d.code !== "Ok" || !route) return json({ error: "Маршрут не найден" }, 404);
-    const steps = (route.legs[0].steps as { maneuver: never; name?: string; distance: number }[])
-      .filter((s, i, a) => s.distance > 0 || i === a.length - 1)
-      .slice(0, 80)
-      .map((s) => ({ text: stepText(s), distance: Math.round(s.distance) }));
-    return json(
-      { mode, distance: Math.round(route.distance), duration: Math.round(route.duration), coords: route.geometry.coordinates, steps },
-      200,
-      { "Cache-Control": "public, s-maxage=120, stale-while-revalidate=300" },
-    );
+    if (!r.ok || d.code !== "Ok" || !d.routes?.length) return json({ error: "Маршрут не найден" }, 404);
+    type RawStep = { maneuver: { type: string; modifier?: string; exit?: number; location: [number, number] }; name?: string; distance: number; duration: number };
+    const routes = (d.routes as { distance: number; duration: number; geometry: { coordinates: [number, number][] }; legs: { steps: RawStep[] }[] }[]).slice(0, 3).map((route) => ({
+      distance: Math.round(route.distance),
+      duration: Math.round(route.duration),
+      coords: route.geometry.coordinates,
+      steps: route.legs[0].steps
+        .filter((st, i, a) => st.distance > 0 || i === a.length - 1 || i === 0)
+        .slice(0, 150)
+        .map((st) => ({
+          text: stepText(st),
+          distance: Math.round(st.distance),
+          duration: Math.round(st.duration),
+          type: st.maneuver.type,
+          modifier: st.maneuver.modifier ?? null,
+          name: st.name ?? "",
+          loc: st.maneuver.location,
+        })),
+    }));
+    return json({ mode, routes }, 200, { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120" });
   } catch (e) {
     console.error("route", e);
     return json({ error: "Сервис маршрутов недоступен. Откройте маршрут в Яндекс.Картах." }, 502);
