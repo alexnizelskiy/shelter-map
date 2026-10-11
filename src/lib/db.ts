@@ -1,9 +1,12 @@
 import postgres from "postgres";
+import { cleanEnv } from "./env";
 
-let client: ReturnType<typeof postgres> | null = null;
-let ready: Promise<void> | null = null;
+const dbUrl = () => cleanEnv(process.env.DATABASE_URL, "DATABASE_URL", true);
 
-export const dbConfigured = () => Boolean(process.env.DATABASE_URL);
+// Клиент и промис схемы хранятся в globalThis: в dev-режиме модули пересоздаются на каждый маршрут, а пул должен быть один.
+const g = globalThis as unknown as { __pg?: ReturnType<typeof postgres>; __pgReady?: Promise<void> | null };
+
+export const dbConfigured = () => Boolean(dbUrl());
 
 export const SCHEMA = `
 CREATE TABLE IF NOT EXISTS shelter_reports (
@@ -32,6 +35,37 @@ CREATE TABLE IF NOT EXISTS suggestions (
 );
 CREATE INDEX IF NOT EXISTS suggestions_state_idx ON suggestions (state, created_at DESC);
 CREATE INDEX IF NOT EXISTS suggestions_ip_idx ON suggestions (ip_hash, created_at DESC);
+ALTER TABLE suggestions ADD COLUMN IF NOT EXISTS moderator_note TEXT;
+ALTER TABLE suggestions ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
+
+-- Точки, добавленные модератором из заявок жителей (никогда не «официальные»).
+CREATE TABLE IF NOT EXISTS published_shelters (
+  id            BIGSERIAL PRIMARY KEY,
+  city_slug     TEXT NOT NULL,
+  kind          TEXT NOT NULL CHECK (kind IN ('other_shelter','help_point','unknown')),
+  address       TEXT NOT NULL,
+  lat           DOUBLE PRECISION NOT NULL,
+  lng           DOUBLE PRECISION NOT NULL,
+  note          TEXT,
+  source_url    TEXT,
+  suggestion_id BIGINT,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Скрытие любой точки до проверки.
+CREATE TABLE IF NOT EXISTS shelter_overrides (
+  shelter_id TEXT PRIMARY KEY,
+  hidden     BOOLEAN NOT NULL DEFAULT false,
+  note       TEXT,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS admin_attempts (
+  id         BIGSERIAL PRIMARY KEY,
+  ip_hash    TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS admin_attempts_idx ON admin_attempts (ip_hash, created_at DESC);
 `;
 
 // Сводка по каждой точке за окно TTL. $1 — часы TTL, $2 — часы окна «проблем», $3 — id точек города.
@@ -61,18 +95,18 @@ export const SUGGEST_LIMIT_SQL = `
 SELECT count(*)::int AS n FROM suggestions WHERE ip_hash = $1 AND created_at > now() - interval '24 hours'`;
 
 export function sql() {
-  if (!client) {
-    client = postgres(process.env.DATABASE_URL!, {
-      ssl: process.env.DATABASE_SSL === "disable" ? false : "require",
-      max: 3,
+  if (!g.__pg) {
+    g.__pg = postgres(dbUrl(), {
+      ssl: cleanEnv(process.env.DATABASE_SSL) === "disable" ? false : "require",
+      max: Number(cleanEnv(process.env.DATABASE_POOL)) || 3,
       idle_timeout: 20,
       prepare: false, // совместимо с пулерами соединений
     });
   }
-  return client;
+  return g.__pg;
 }
 
 export function ensureSchema() {
-  ready ??= sql().unsafe(SCHEMA).then(() => undefined).catch((e) => { ready = null; throw e; });
-  return ready;
+  g.__pgReady ??= sql().unsafe(SCHEMA).then(() => undefined).catch((e) => { g.__pgReady = null; throw e; });
+  return g.__pgReady;
 }

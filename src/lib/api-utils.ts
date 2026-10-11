@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { cleanEnv } from "./env";
 
 export const json = (body: unknown, status = 200, headers?: HeadersInit) =>
   Response.json(body, { status, headers });
@@ -6,7 +7,7 @@ export const json = (body: unknown, status = 200, headers?: HeadersInit) =>
 // В базе храним не IP, а соленый хэш: нужен только для защиты от накруток.
 export function ipHash(req: Request) {
   const ip = (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || req.headers.get("x-real-ip") || "unknown";
-  const salt = process.env.IP_HASH_SECRET || "dev-only-salt";
+  const salt = cleanEnv(process.env.IP_HASH_SECRET, "IP_HASH_SECRET") || "dev-only-salt";
   return createHash("sha256").update(`${salt}:${ip}`).digest("hex").slice(0, 32);
 }
 

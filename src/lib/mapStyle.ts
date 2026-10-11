@@ -5,9 +5,10 @@ import type { StyleSpecification } from "maplibre-gl";
 // Если в переменной лежит только ключ Яндекса (не URL), шаблон собираем сами.
 const yandex = (key: string) =>
   `https://tiles.api-maps.yandex.ru/v1/tiles/?apikey=${key}&lang=ru_RU&x={x}&y={y}&z={z}&l=map&projection=web_mercator`;
-const RAW = (process.env.NEXT_PUBLIC_TILES_URL || "").trim();
+const strip = (v: string) => v.trim().replace(/^["'`“”«]+|["'`“”»]+$/g, "").trim();
+const RAW = strip(process.env.NEXT_PUBLIC_TILES_URL || "");
 const TILES = !RAW ? "https://tile.openstreetmap.org/{z}/{x}/{y}.png" : /^https?:\/\//.test(RAW) ? RAW : yandex(RAW);
-const ATTRIBUTION = process.env.NEXT_PUBLIC_TILES_ATTRIBUTION || "© участники OpenStreetMap";
+const ATTRIBUTION = strip(process.env.NEXT_PUBLIC_TILES_ATTRIBUTION || "") || "© участники OpenStreetMap";
 
 export const mapStyle: StyleSpecification = {
   version: 8,

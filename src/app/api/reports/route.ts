@@ -1,5 +1,5 @@
 import { getCity } from "@/lib/cities";
-import { getShelters } from "@/lib/shelters";
+import { loadShelters } from "@/lib/shelters-server";
 import { REPORT_KINDS, REPORT_TTL_HOURS, WARN_WINDOW_HOURS, type ReportKind, type ReportSummary } from "@/lib/reports";
 import { dbConfigured, ensureSchema, sql, SUMMARY_SQL, REPORT_LIMIT_SQL } from "@/lib/db";
 import { ipHash, json, readJson, clean } from "@/lib/api-utils";
@@ -11,7 +11,7 @@ export async function GET(req: Request) {
   if (!dbConfigured()) return json({ reports: [], enabled: false });
   try {
     await ensureSchema();
-    const ids = getShelters(city.slug).map((s) => s.id);
+    const ids = (await loadShelters(city.slug)).map((s) => s.id);
     const rows = (await sql().unsafe(SUMMARY_SQL, [REPORT_TTL_HOURS, WARN_WINDOW_HOURS, ids] as never)) as unknown as ReportSummary[];
     return json({ reports: rows, enabled: true }, 200, { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60" });
   } catch (e) {
@@ -26,8 +26,8 @@ export async function POST(req: Request) {
   const shelterId = clean(body.shelterId, 32);
   const kind = clean(body.kind, 20) as ReportKind;
   if (!REPORT_KINDS.includes(kind)) return json({ error: "Неизвестный тип сообщения" }, 400);
-  if (!getShelters("rostov-na-donu").some((s) => s.id === shelterId)) return json({ error: "Точка не найдена" }, 404);
   if (!dbConfigured()) return json({ error: "Приём сообщений ещё не подключён" }, 503);
+  if (!(await loadShelters("rostov-na-donu")).some((s) => s.id === shelterId)) return json({ error: "Точка не найдена" }, 404);
 
   try {
     await ensureSchema();

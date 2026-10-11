@@ -12,7 +12,8 @@ export type Shelter = {
   capacity?: number;
   lat: number;
   lng: number;
-  sourceUrl: string;
+  origin?: "official" | "community"; // community = добавлено по заявке жителя и проверено модератором
+  sourceUrl?: string;
   sourceUpdatedAt: string; // дата обновления данных самим источником
   sourceCheckedAt: string; // когда мы сверили с источником
 };

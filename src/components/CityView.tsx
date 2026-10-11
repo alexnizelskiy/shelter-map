@@ -60,7 +60,7 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
   }, [query, me, byDistance, shelters]);
 
   const current = shelters.find((s) => s.id === selected) ?? null;
-  const updated = shelters.map((s) => s.sourceUpdatedAt).sort().at(-1);
+  const updated = shelters.filter((s) => s.origin !== "community").map((s) => s.sourceUpdatedAt).sort().at(-1);
   const totalCapacity = useMemo(() => shelters.reduce((a, s) => a + (s.capacity ?? 0), 0), [shelters]);
 
   const locate = () => {
@@ -87,7 +87,7 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
             <h1>Где укрыться — {city.name}</h1>
             <p>
               {shelters.length > 0
-                ? `${shelters.length} защитных помещений по списку администрации города, данные источника от ${fmtDate(updated!)}. `
+                ? `${shelters.filter((x) => x.origin !== "community").length} защитных помещений по списку администрации города, данные источника от ${fmtDate(updated!)}. `
                 : "Данные по городу загружаются. "}
               Справочная информация, не гарантия безопасности и доступности входа.
             </p>
@@ -193,9 +193,11 @@ function Passport({ s, me, summary, onSent, onClose, hideOnNarrow }: { s: Shelte
     ["Вместимость", s.capacity ? `${s.capacity.toLocaleString("ru-RU")} чел.` : "не указана"],
     ["Категория", KIND_LABEL[s.kind]],
     ...(me ? ([["Расстояние", `${distanceKm(me.lat, me.lng, s.lat, s.lng).toFixed(1)} км`]] as [string, string][]) : []),
-    ["Источник", <a key="src" href={s.sourceUrl} target="_blank" rel="noreferrer">Карта администрации города</a>],
-    ["Данные источника от", fmtDate(s.sourceUpdatedAt)],
-    ["Сверено нами", fmtDate(s.sourceCheckedAt)],
+    s.origin === "community"
+      ? ["Источник", "Заявка жителя, проверена модератором. Не из официального списка."]
+      : ["Источник", <a key="src" href={s.sourceUrl} target="_blank" rel="noreferrer">Карта администрации города</a>],
+    [s.origin === "community" ? "Добавлено" : "Данные источника от", fmtDate(s.sourceUpdatedAt)],
+    ...(s.origin === "community" ? [] : ([["Сверено нами", fmtDate(s.sourceCheckedAt)]] as [string, string][])),
   ];
   return (
     <aside className={`passport ${hideOnNarrow ? "passport-hide" : ""}`}>
@@ -229,7 +231,7 @@ function Passport({ s, me, summary, onSent, onClose, hideOnNarrow }: { s: Shelte
         {sent && <p className={sent.ok ? "ok" : "err"}>{sent.text}</p>}
         <p className="note">Сообщайте только то, что заметили сами. Не подвергайте себя опасности ради проверки.</p>
       </div>
-      <p className="note">Данные взяты из списка администрации и могут устареть. Вместимость и доступность входа не гарантируются.</p>
+      <p className="note">{s.origin === "community" ? "Точка добавлена по сообщению жителя и не подтверждена официальным источником." : "Данные взяты из списка администрации и могут устареть."} Вместимость и доступность входа не гарантируются.</p>
     </aside>
   );
 }
