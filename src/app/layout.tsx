@@ -1,15 +1,19 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import PwaRegister from "@/components/PwaRegister";
 
 export const metadata: Metadata = {
   title: "Карта укрытий",
   description: "Укрытия и убежища по городам России: источник и дата проверки у каждой точки.",
+  applicationName: "Карта укрытий",
+  appleWebApp: { capable: true, title: "Укрытия", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   colorScheme: "light dark",
+  themeColor: "#16a34a",
 };
 
 // Тема выставляется до первой отрисовки, чтобы не было вспышки: system | light | dark (хранится в localStorage).
@@ -21,7 +25,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <PwaRegister />
+      </body>
     </html>
   );
 }

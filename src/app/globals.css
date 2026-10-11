@@ -494,3 +494,6 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .my-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 0 4px 10px; }
 .my-title { display: inline-flex; gap: 5px; align-items: center; font-size: calc(13px * var(--fs, 1)); color: var(--muted); margin-right: 2px; }
 .my-row .fchip { padding: 5px 10px; font-size: calc(12.5px * var(--fs, 1)); }
+
+.offline-card { padding: 14px; margin: 8px 0; }
+.offline-pill { position: absolute; z-index: 9; left: 50%; top: 12px; transform: translateX(-50%); display: inline-flex; gap: 8px; align-items: center; padding: 10px 16px; border-radius: 999px; text-decoration: none; color: var(--fg); font-size: calc(13.5px * var(--fs, 1)); font-weight: 600; max-width: calc(100% - 24px); }

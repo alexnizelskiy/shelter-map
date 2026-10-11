@@ -1,12 +1,12 @@
 "use client";
 
-import { memo, useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { memo, useSyncExternalStore, useEffect, useMemo, useRef, useState, useCallback } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
   Building2, CalendarDays, ChevronRight, CircleAlert, DoorClosed, DoorOpen, Heart, Layers, LayoutGrid, Link2, List, LocateFixed,
   Map as MapIcon, MapPin, MapPinPlus, Minus, Navigation, Palette, Plus, Route, Search, SearchX, Settings, ShieldCheck, TriangleAlert,
-  Users, X, Clock, Info, ChevronDown, Car, Camera, Siren, Accessibility, PawPrint, MessageCircle, Volume2, VolumeX, ArrowUp, ArrowUpLeft, ArrowUpRight, CornerUpLeft, CornerUpRight, Undo2, RotateCw, Flag, Footprints, ListOrdered, type LucideIcon,
+  Users, X, Clock, Info, ChevronDown, Car, Camera, Smartphone, WifiOff, Siren, Accessibility, PawPrint, MessageCircle, Volume2, VolumeX, ArrowUp, ArrowUpLeft, ArrowUpRight, CornerUpLeft, CornerUpRight, Undo2, RotateCw, Flag, Footprints, ListOrdered, type LucideIcon,
 } from "lucide-react";
 import { compressImage } from "@/lib/image";
 import { KIND_LABEL, distanceKm, fmtDate, type Shelter } from "@/lib/shelters";
@@ -20,6 +20,7 @@ import LocationPrompt from "./LocationPrompt";
 import Checklist from "./Checklist";
 import AccessBlock from "./AccessBlock";
 import MyShelterButton from "./MyShelterButton";
+import OfflineSettings from "./OfflineSettings";
 import ChatPanel from "./ChatPanel";
 import Spinner from "./Spinner";
 import { useNavigation, type NavState, type Variant } from "@/lib/useNavigation";
@@ -102,6 +103,11 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
   const [reports, setReports] = useState<ReportSummary[]>([]);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [picking, setPicking] = useState(false);
+  const online = useSyncExternalStore(
+    (cb) => { window.addEventListener("online", cb); window.addEventListener("offline", cb); return () => { window.removeEventListener("online", cb); window.removeEventListener("offline", cb); }; },
+    () => navigator.onLine,
+    () => true,
+  );
   const [bmId] = useBasemapId();
   const basemap = getBasemap(bmId);
   const [layersOpen, setLayersOpen] = useState(false);
@@ -265,6 +271,10 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
         </div>
       )}
 
+      {!online && !navActive && (
+        <Link href="/alarm" className="offline-pill glass"><WifiOff size={16} />Нет сети: карта может не загрузиться. Откройте режим «Тревога»</Link>
+      )}
+
       <LocationPrompt current={city.slug} onChooseOther={() => setSearchOpen(true)} />
 
       <aside className="side">
@@ -357,6 +367,8 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
               <div className="large-title"><h2>Настройки</h2></div>
               <h2 style={{ display: "flex", gap: 8, alignItems: "center" }}><Palette size={16} />Оформление</h2>
               <ThemeSwitch />
+              <h2 style={{ display: "flex", gap: 8, alignItems: "center" }}><Smartphone size={16} />Приложение и офлайн</h2>
+              <OfflineSettings citySlug={city.slug} />
               <AccessibilitySettings />
               <h2 style={{ display: "flex", gap: 8, alignItems: "center" }}><MapIcon size={16} />Подложка карты</h2>
               <BasemapSwitch />
