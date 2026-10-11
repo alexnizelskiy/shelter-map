@@ -15,6 +15,7 @@ import SuggestForm, { EMPTY_DRAFT, type Draft } from "./SuggestForm";
 import ThemeSwitch from "./ThemeSwitch";
 import CitySearch from "./CitySearch";
 import LocationPrompt from "./LocationPrompt";
+import Checklist from "./Checklist";
 import BasemapSwitch, { useBasemapId } from "./BasemapSwitch";
 import { getBasemap } from "@/lib/basemaps";
 
@@ -441,6 +442,8 @@ function Passport({ citySlug, route, routeBusy, routeError, onRoute, onClearRout
         </div>
         <p className="note" style={{ margin: "6px 0 0" }}>Маршрут ориентировочный: проверяйте обстановку и следуйте указаниям МЧС.</p>
       </div>
+
+      <Checklist autoOpen={!!route} />
 
       <div className="card reports">
         <h3><Users size={16} />Сообщения жителей</h3>

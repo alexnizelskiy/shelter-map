@@ -282,3 +282,18 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .photo-draft img { width: 100%; max-height: 200px; object-fit: cover; border-radius: 16px; }
 .photo-draft .check { display: flex; gap: 10px; font-size: 12.5px; color: var(--muted); align-items: flex-start; }
 .photo-draft .check input { margin-top: 2px; accent-color: var(--accent); }
+
+/* ───────── Что взять с собой ───────── */
+.checklist { padding: 6px 14px 12px; margin: 10px 0; }
+.cl-head { width: 100%; display: flex; align-items: center; gap: 12px; padding: 8px 0; border: 0; background: transparent; text-align: left; cursor: pointer; }
+.cl-title { flex: 1; display: grid; } .cl-title b { font-size: 15px; } .cl-title small { color: var(--muted); font-size: 12px; }
+.cl-chev { color: var(--muted); margin-right: 2px; transition: transform .2s; } .cl-chev.up { transform: rotate(180deg); }
+.cl-quick { margin: 0 0 4px; font-size: 13px; color: var(--muted); line-height: 1.4; }
+.cl-body { display: grid; gap: 4px; }
+.cl-group h4 { display: flex; gap: 6px; align-items: center; margin: 12px 0 4px; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+.cl-group ul { list-style: none; padding: 0; margin: 0; }
+.cl-item { width: 100%; display: flex; gap: 10px; align-items: flex-start; padding: 8px 4px; border: 0; background: transparent; text-align: left; font: inherit; font-size: 14px; cursor: pointer; border-radius: 12px; }
+.cl-item.on { color: var(--muted); } .cl-item.on span:last-child { text-decoration: line-through; }
+.cl-box { flex: none; width: 20px; height: 20px; margin-top: 1px; border-radius: 7px; border: 1.5px solid var(--muted); display: grid; place-items: center; }
+.cl-item.on .cl-box { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.cl-item em { margin-left: 6px; font-style: normal; font-size: 11px; font-weight: 700; color: var(--accent); background: var(--accent-soft); padding: 1px 7px; border-radius: 999px; }
