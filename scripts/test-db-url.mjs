@@ -16,6 +16,9 @@ ok("psql prefix", 'psql "postgresql://u:p@h:5432/d?sslmode=require"', { host: "h
 ok("jdbc", "jdbc:postgresql://h:5432/d?user=u&password=p%40", { host: "h", user: "u", password: "p@", database: "d" });
 ok("url without userinfo", "postgresql://h:5432/d?user=u&password=pw", { host: "h", user: "u", password: "pw" });
 ok("url without db", "postgresql://u:p@h:5432", { host: "h", port: 5432, database: "u" });
+ok("export + psql url", 'export PGSSLROOTCERT=$HOME/.cloud-certs/root.crt\npsql "postgresql://gen_user:pa@ss@1.2.3.4:5432/default_db?sslmode=verify-full"', { user: "gen_user", password: "pa@ss", host: "1.2.3.4", database: "default_db", sslmode: "verify-full" });
+ok("export PGPASSWORD + psql flags", "export PGPASSWORD='p@ss'\npsql -h h.example -p 5433 -U gen_user -d default_db", { host: "h.example", port: 5433, user: "gen_user", password: "p@ss", database: "default_db" });
+ok("inline PGPASSWORD", "PGPASSWORD=x psql -h h -U u -d d", { host: "h", user: "u", password: "x", database: "d" });
 ok("dsn", "host=h port=5433 dbname=d user=u password='p w'", { host: "h", port: 5433, database: "d", user: "u", password: "p w" });
 ok("block colon", "Host: db.example.com\nPort: 5432\nUser: gen_user\nPassword: s3cr3t!\nDatabase: default_db", { host: "db.example.com", user: "gen_user", password: "s3cr3t!", database: "default_db" });
 ok("block env", 'PGHOST="h"\nPGPORT=5432\nPGUSER=u\nPGPASSWORD="p"\nPGDATABASE=d', { host: "h", user: "u", password: "p", database: "d" });

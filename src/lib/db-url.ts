@@ -57,16 +57,37 @@ function parsePairs(raw: string): DbConfig | null {
   return fromPairs(pairs);
 }
 
+// Флаги psql: -h хост -p порт -U пользователь -d база (и длинные --host=…); пароль обычно в PGPASSWORD=…
+function parsePsqlFlags(raw: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  const re = /(?:^|\s)(-h|--host|-p|--port|-U|--username|-d|--dbname)(?:=|\s+)(?:'([^']*)'|"([^"]*)"|(\S+))/g;
+  const map: Record<string, string> = { "-h": "host", "--host": "host", "-p": "port", "--port": "port", "-U": "user", "--username": "user", "-d": "database", "--dbname": "database" };
+  for (let m: RegExpExecArray | null; (m = re.exec(raw)); ) out[map[m[1]]] = unquote(m[2] ?? m[3] ?? m[4] ?? "");
+  return out;
+}
+
 export function parseDbConfig(raw: string, env: Record<string, string | undefined> = {}): DbConfig | null {
   const text = raw.trim();
   if (text) {
-    const viaUrl = /:\/\//.test(text) ? parseUrlForm(text) : null;
+    // команда вроде «export PGSSLROOTCERT=…\npsql "postgresql://…"»: берём саму ссылку из любого места
+    const urlInText = /postgres(?:ql)?(?:\+\w+)?:\/\/[^\s"'`]+/i.exec(text.replace(/^\s*psql\s+/i, ""))?.[0];
+    // если вся строка — это ссылка (возможно, с лишними пробелами внутри), разбираем её целиком
+    const wholeIsUrl = /^["'`]?(?:psql\s+)?(?:jdbc:)?postgres(?:ql)?(?:\+\w+)?:\/\//i.test(text);
+    const viaUrl = (wholeIsUrl ? parseUrlForm(text) : null) ?? (urlInText ? parseUrlForm(urlInText) : null);
     if (viaUrl) return viaUrl;
     const viaPairs = parsePairs(text);
-    if (viaPairs) return viaPairs;
+    const flags = parsePsqlFlags(text);
+    const merged = fromPairs({ ...(viaPairs ? { host: viaPairs.host, port: String(viaPairs.port), user: viaPairs.user, password: viaPairs.password, database: viaPairs.database } : {}), ...flags, ...pickPassword(text) });
+    if (merged) return merged;
   }
   // отдельные переменные PGHOST / PGUSER / ...
   return fromPairs({ host: env.PGHOST ?? "", port: env.PGPORT ?? "", user: env.PGUSER ?? "", password: env.PGPASSWORD ?? "", database: env.PGDATABASE ?? "" });
+}
+
+// PGPASSWORD=… из строк «export PGPASSWORD=…» / «PGPASSWORD=… psql …»
+function pickPassword(raw: string): Record<string, string> {
+  const m = /PGPASSWORD\s*=\s*(?:'([^']*)'|"([^"]*)"|([^\s;]+))/.exec(raw);
+  return m ? { password: unquote(m[1] ?? m[2] ?? m[3] ?? "") } : {};
 }
 
 export const parseDbUrl = parseDbConfig;
