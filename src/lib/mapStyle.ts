@@ -1,17 +1,7 @@
 import type { StyleSpecification } from "maplibre-gl";
+import { type Basemap } from "./basemaps";
 
-// URL-шаблон растровых тайлов задаётся окружением (ключ не хранится в коде).
-// Пример см. в .env.example (Яндекс Tiles API, projection=web_mercator).
-// Если в переменной лежит только ключ Яндекса (не URL), шаблон собираем сами.
-const yandex = (key: string) =>
-  `https://tiles.api-maps.yandex.ru/v1/tiles/?apikey=${key}&lang=ru_RU&x={x}&y={y}&z={z}&l=map&projection=web_mercator`;
-const strip = (v: string) => v.trim().replace(/^["'`“”«]+|["'`“”»]+$/g, "").trim();
-const RAW = strip(process.env.NEXT_PUBLIC_TILES_URL || "");
-const TILES = !RAW ? "https://tile.openstreetmap.org/{z}/{x}/{y}.png" : /^https?:\/\//.test(RAW) ? RAW : yandex(RAW);
-const ATTRIBUTION = strip(process.env.NEXT_PUBLIC_TILES_ATTRIBUTION || "") || "© участники OpenStreetMap";
+// Пустой стиль: подложка добавляется слоем и переключается на лету в CityMap.
+export const emptyStyle: StyleSpecification = { version: 8, sources: {}, layers: [] };
 
-export const mapStyle: StyleSpecification = {
-  version: 8,
-  sources: { base: { type: "raster", tiles: [TILES], tileSize: 256, maxzoom: 20, attribution: ATTRIBUTION } },
-  layers: [{ id: "base", type: "raster", source: "base" }],
-};
+export const rasterSource = (src: string, b: Basemap) => ({ type: "raster" as const, tiles: [src], tileSize: 256, maxzoom: b.maxzoom, attribution: b.attribution });

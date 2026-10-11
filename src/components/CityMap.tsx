@@ -4,7 +4,8 @@ import { useEffect, useRef } from "react";
 import * as maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 
-import { mapStyle } from "@/lib/mapStyle";
+import { emptyStyle, rasterSource } from "@/lib/mapStyle";
+import type { Basemap } from "@/lib/basemaps";
 import type { Shelter } from "@/lib/shelters";
 
 maplibregl.setWorkerUrl("/maplibre-gl-worker.mjs");
@@ -20,17 +21,21 @@ type Props = {
   picking?: boolean; // режим выбора точки для новой заявки
   picked?: { lat: number; lng: number } | null;
   onPick?: (lat: number, lng: number) => void;
+  basemap: Basemap;
+  route?: [number, number][] | null; // линия маршрута [lng, lat][]
 };
 
 const SRC = "shelters";
 const KIND_COLOR = ["case", ["==", ["get", "flag"], 1], "#e0a100", ["match", ["get", "kind"], "official_shelter", "#1f9d55", "other_shelter", "#1f9d55", "help_point", "#1b6ef3", "#8b93a1"]];
 
-export default function CityMap({ center, zoom, shelters, selectedId, onSelect, me, flagged, picking, picked, onPick }: Props) {
+export default function CityMap({ center, zoom, shelters, selectedId, onSelect, me, flagged, picking, picked, onPick, basemap, route }: Props) {
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const ready = useRef(false);
   const onSelectRef = useRef(onSelect);
   const sheltersRef = useRef(shelters);
+  const baseRef = useRef(basemap);
+  const themeRef = useRef<() => void>(() => {});
   const flaggedRef = useRef<Set<string>>(new Set());
   const pickingRef = useRef(false);
   const onPickRef = useRef(onPick);
@@ -40,12 +45,13 @@ export default function CityMap({ center, zoom, shelters, selectedId, onSelect, 
     flaggedRef.current = new Set(flagged ?? []);
     pickingRef.current = !!picking;
     onPickRef.current = onPick;
-  }, [onSelect, shelters, flagged, picking, onPick]);
+    baseRef.current = basemap;
+  }, [onSelect, shelters, flagged, picking, onPick, basemap]);
 
   // инициализация карты, источника и слоёв
   useEffect(() => {
     if (!el.current) return;
-    const m = new maplibregl.Map({ container: el.current, style: mapStyle, center, zoom });
+    const m = new maplibregl.Map({ container: el.current, style: emptyStyle, center, zoom });
     map.current = m;
     const clusterMarkers = new Map<number, maplibregl.Marker>();
 
@@ -71,16 +77,19 @@ export default function CityMap({ center, zoom, shelters, selectedId, onSelect, 
 
     const applyTheme = () => {
       if (!m.getLayer("base")) return;
-      const dark = document.documentElement.dataset.theme === "dark";
+      // тёмная тема: схемы инвертируем по яркости, спутник оставляем как есть
+      const dark = document.documentElement.dataset.theme === "dark" && !baseRef.current.keepColors;
       m.setPaintProperty("base", "raster-brightness-min", dark ? 0.92 : 0);
       m.setPaintProperty("base", "raster-brightness-max", dark ? 0.04 : 1);
       m.setPaintProperty("base", "raster-hue-rotate", dark ? 180 : 0);
       m.setPaintProperty("base", "raster-saturation", dark ? -0.35 : 0);
     };
+    themeRef.current = applyTheme;
     const themeObserver = new MutationObserver(applyTheme);
     themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
     m.on("load", () => {
+      addBase(m, baseRef.current);
       applyTheme();
       m.addSource(SRC, {
         type: "geojson",
@@ -93,6 +102,9 @@ export default function CityMap({ center, zoom, shelters, selectedId, onSelect, 
         paint: { "circle-radius": 7, "circle-color": KIND_COLOR as never, "circle-stroke-width": 2, "circle-stroke-color": "#fff" } });
       m.addLayer({ id: "sel", type: "circle", source: SRC, filter: ["==", ["get", "id"], ""],
         paint: { "circle-radius": 11, "circle-color": "#e5484d", "circle-stroke-width": 3, "circle-stroke-color": "#fff" } });
+      m.addSource("route", { type: "geojson", data: lineData(null) });
+      m.addLayer({ id: "route-casing", type: "line", source: "route", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#ffffff", "line-width": 9, "line-opacity": 0.9 } });
+      m.addLayer({ id: "route-line", type: "line", source: "route", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": "#2f7cf6", "line-width": 5 } });
       m.on("click", (e) => { if (pickingRef.current) onPickRef.current?.(e.lngLat.lat, e.lngLat.lng); });
       m.on("click", "pts", (e) => { if (pickingRef.current) return; const id = e.features?.[0]?.properties?.id; if (id) onSelectRef.current?.(id); });
       m.on("mouseenter", "pts", () => (m.getCanvas().style.cursor = "pointer"));
@@ -102,6 +114,26 @@ export default function CityMap({ center, zoom, shelters, selectedId, onSelect, 
     });
     return () => { ready.current = false; themeObserver.disconnect(); clusterMarkers.clear(); m.remove(); };
   }, [center, zoom]);
+
+  // переключение подложки на лету
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !ready.current) return;
+    addBase(m, basemap, m.getLayer("pts") ? "pts" : undefined);
+    themeRef.current();
+  }, [basemap]);
+
+  // маршрут: рисуем линию и показываем её целиком
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !ready.current) return;
+    (m.getSource("route") as maplibregl.GeoJSONSource | undefined)?.setData(lineData(route ?? null));
+    if (route && route.length > 1) {
+      const b = new maplibregl.LngLatBounds(route[0], route[0]);
+      route.forEach((c) => b.extend(c));
+      m.fitBounds(b, { padding: { top: 60, bottom: 120, left: isNarrowScreen() ? 40 : 440, right: 70 }, duration: 900, maxZoom: 17 });
+    }
+  }, [route]);
 
   // подсветка выбранной точки и перелёт к ней
   useEffect(() => {
@@ -153,6 +185,26 @@ export default function CityMap({ center, zoom, shelters, selectedId, onSelect, 
   }, []);
 
   return <div ref={el} className="map" />;
+}
+
+const isNarrowScreen = () => typeof window !== "undefined" && window.innerWidth <= 760;
+
+function lineData(route: [number, number][] | null): GeoJSON.FeatureCollection {
+  return { type: "FeatureCollection", features: route && route.length > 1 ? [{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: route } }] : [] };
+}
+
+// Подложка = растровый слой "base" (+ необязательные подписи "base-ov"); пересоздаётся при смене.
+function addBase(m: maplibregl.Map, b: Basemap, before?: string) {
+  for (const id of ["base-ov", "base"]) {
+    if (m.getLayer(id)) m.removeLayer(id);
+    if (m.getSource(id)) m.removeSource(id);
+  }
+  m.addSource("base", rasterSource(b.tiles, b));
+  m.addLayer({ id: "base", type: "raster", source: "base" }, before);
+  if (b.overlay) {
+    m.addSource("base-ov", rasterSource(b.overlay, b));
+    m.addLayer({ id: "base-ov", type: "raster", source: "base-ov" }, before);
+  }
 }
 
 function toGeoJSON(list: Shelter[], flagged: Set<string>): GeoJSON.FeatureCollection {

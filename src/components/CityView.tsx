@@ -5,13 +5,15 @@ import dynamic from "next/dynamic";
 import {
   Building2, CalendarDays, ChevronRight, CircleAlert, DoorClosed, DoorOpen, Heart, Layers, LayoutGrid, Link2, List, LocateFixed,
   Map as MapIcon, MapPin, MapPinPlus, Minus, Navigation, Palette, Plus, Route, Search, SearchX, Settings, ShieldCheck, TriangleAlert,
-  Users, X, Clock, Info, type LucideIcon,
+  Users, X, Clock, Info, Car, Footprints, ListOrdered, type LucideIcon,
 } from "lucide-react";
 import { KIND_LABEL, distanceKm, fmtDate, type Shelter } from "@/lib/shelters";
 import type { City } from "@/lib/cities";
 import { REPORT_KINDS, REPORT_LABEL, REPORT_TTL_HOURS, WARN_THRESHOLD, flaggedIds, type ReportKind, type ReportSummary } from "@/lib/reports";
 import SuggestForm, { EMPTY_DRAFT, type Draft } from "./SuggestForm";
 import ThemeSwitch from "./ThemeSwitch";
+import BasemapSwitch, { useBasemapId } from "./BasemapSwitch";
+import { getBasemap } from "@/lib/basemaps";
 
 const CityMap = dynamic(() => import("./CityMap"), { ssr: false });
 
@@ -28,6 +30,13 @@ const TABS: { key: Tab; label: string; Icon: LucideIcon }[] = [
 
 const REPORT_ICON: Record<ReportKind, LucideIcon> = { open: DoorOpen, closed: DoorClosed, not_found: SearchX, wrong_info: CircleAlert };
 
+export type RouteInfo = { mode: "foot" | "car"; distance: number; duration: number; coords: [number, number][]; steps: { text: string; distance: number }[] };
+const fmtDist = (m: number) => (m < 1000 ? `${m} м` : `${(m / 1000).toFixed(1).replace(".", ",")} км`);
+const fmtTime = (sec: number) => {
+  const min = Math.max(1, Math.round(sec / 60));
+  return min < 60 ? `${min} мин` : `${Math.floor(min / 60)} ч ${min % 60 ? `${min % 60} мин` : ""}`.trim();
+};
+
 const title = (s: Shelter) => `${s.objectType}${s.placement ? ` в ${s.placement}` : ""}`;
 const iconFor = (s: Shelter): { Icon: LucideIcon; cls: string } =>
   s.origin === "community"
@@ -43,6 +52,12 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
   const [reports, setReports] = useState<ReportSummary[]>([]);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [picking, setPicking] = useState(false);
+  const [bmId] = useBasemapId();
+  const basemap = getBasemap(bmId);
+  const [layersOpen, setLayersOpen] = useState(false);
+  const [route, setRoute] = useState<RouteInfo | null>(null);
+  const [routeBusy, setRouteBusy] = useState(false);
+  const [routeError, setRouteError] = useState<string | null>(null);
 
   const loadReports = useCallback(() => {
     fetch(`/api/reports?city=${city.slug}`)
@@ -61,8 +76,8 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
     setTab("suggest");
   }, []);
 
-  const pick = useCallback((id: string) => setSelected(id), []);
-  const pickFromList = (id: string) => { setSelected(id); if (isNarrow()) setTab("map"); };
+  const pick = useCallback((id: string) => { setSelected(id); setRoute(null); setRouteError(null); }, []);
+  const pickFromList = (id: string) => { setSelected(id); setRoute(null); setRouteError(null); if (isNarrow()) setTab("map"); };
 
   const byDistance = useCallback(
     (pos: { lat: number; lng: number }) =>
@@ -94,6 +109,29 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
       () => { setGeoError(true); setTab("map"); },
     );
   };
+  const buildRoute = (target: Shelter, mode: "foot" | "car") => {
+    setRouteError(null);
+    setRouteBusy(true);
+    const go = async (pos: { lat: number; lng: number }) => {
+      try {
+        const r = await fetch(`/api/route?from=${pos.lng},${pos.lat}&to=${target.lng},${target.lat}&mode=${mode}`);
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error ?? "Не удалось построить маршрут");
+        setMe(pos);
+        setRoute(j);
+      } catch (e) {
+        setRouteError(e instanceof Error ? e.message : "Не удалось построить маршрут");
+      } finally {
+        setRouteBusy(false);
+      }
+    };
+    if (me) return void go(me);
+    navigator.geolocation.getCurrentPosition(
+      (p) => go({ lat: p.coords.latitude, lng: p.coords.longitude }),
+      () => { setRouteBusy(false); setRouteError("Не удалось определить ваше местоположение. Разрешите доступ к геопозиции."); },
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  };
   const zoom = (d: number) => window.dispatchEvent(new CustomEvent("map-zoom", { detail: d }));
 
   return (
@@ -101,6 +139,7 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
       <CityMap
         center={city.center} zoom={city.zoom} shelters={shelters} selectedId={selected} onSelect={pick} me={me} flagged={flagged}
         picking={picking} picked={draft.lat != null && draft.lng != null ? { lat: draft.lat, lng: draft.lng } : null} onPick={onMapPick}
+        basemap={basemap} route={route?.coords ?? null}
       />
 
       {picking && (
@@ -194,6 +233,8 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
               <div className="large-title"><h2>Настройки</h2></div>
               <h2 style={{ display: "flex", gap: 8, alignItems: "center" }}><Palette size={16} />Оформление</h2>
               <ThemeSwitch />
+              <h2 style={{ display: "flex", gap: 8, alignItems: "center" }}><MapIcon size={16} />Подложка карты</h2>
+              <BasemapSwitch />
               <h2 style={{ display: "flex", gap: 8, alignItems: "center" }}><Info size={16} />О сервисе</h2>
               <div className="card" style={{ padding: "6px 10px" }}>
                 <p>Мы показываем только места из открытых официальных источников. У каждой точки указан источник и дата данных.</p>
@@ -215,10 +256,12 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
       </aside>
 
       {current && !picking && (
-        <Passport key={current.id} s={current} me={me} summary={currentReport} onSent={loadReports} onClose={() => setSelected(null)} hideOnNarrow={tab !== "map"} />
+        <Passport key={current.id} citySlug={city.slug} route={route} routeBusy={routeBusy} routeError={routeError} onRoute={(m) => buildRoute(current, m)} onClearRoute={() => { setRoute(null); setRouteError(null); }} s={current} me={me} summary={currentReport} onSent={loadReports} onClose={() => setSelected(null)} hideOnNarrow={tab !== "map"} />
       )}
 
+      {layersOpen && <div className="layers-pop glass"><BasemapSwitch compact /></div>}
       <div className="controls">
+        <button className="ctl-btn glass" aria-label="Подложка карты" aria-expanded={layersOpen} onClick={() => setLayersOpen((v) => !v)}><Layers size={21} /></button>
         <div className="zoom glass">
           <button aria-label="Приблизить" onClick={() => zoom(1)}><Plus size={20} /></button>
           <button aria-label="Отдалить" onClick={() => zoom(-1)}><Minus size={20} /></button>
@@ -238,13 +281,13 @@ const ago = (iso: string) => {
 
 type PRow = { Icon: LucideIcon; label: string; value: React.ReactNode };
 
-function Passport({ s, me, summary, onSent, onClose, hideOnNarrow }: { s: Shelter; me: { lat: number; lng: number } | null; summary: ReportSummary | null; onSent: () => void; onClose: () => void; hideOnNarrow: boolean }) {
+function Passport({ citySlug, route, routeBusy, routeError, onRoute, onClearRoute, s, me, summary, onSent, onClose, hideOnNarrow }: { citySlug: string; route: RouteInfo | null; routeBusy: boolean; routeError: string | null; onRoute: (m: "foot" | "car") => void; onClearRoute: () => void; s: Shelter; me: { lat: number; lng: number } | null; summary: ReportSummary | null; onSent: () => void; onClose: () => void; hideOnNarrow: boolean }) {
   const [sent, setSent] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const send = async (kind: ReportKind) => {
     setBusy(true);
     try {
-      const r = await fetch("/api/reports", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ shelterId: s.id, kind }) });
+      const r = await fetch("/api/reports", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ city: citySlug, shelterId: s.id, kind }) });
       const j = await r.json().catch(() => ({}));
       setSent(r.ok ? { ok: true, text: "Спасибо, сообщение принято." } : { ok: false, text: j.error ?? "Не удалось отправить." });
       if (r.ok) onSent();
@@ -267,7 +310,7 @@ function Passport({ s, me, summary, onSent, onClose, hideOnNarrow }: { s: Shelte
       Icon: Link2, label: "Источник",
       value: s.origin === "community"
         ? "Заявка жителя, проверена модератором. Не из официального списка."
-        : <a href={s.sourceUrl} target="_blank" rel="noreferrer">Карта администрации города</a>,
+        : s.sourceUrl ? <a href={s.sourceUrl} target="_blank" rel="noreferrer">{s.sourceUrl.includes("yandex.ru/maps") ? "Карта администрации города" : "Открыть источник"}</a> : "Указан администратором",
     },
     { Icon: CalendarDays, label: s.origin === "community" ? "Добавлено" : "Данные источника от", value: fmtDate(s.sourceUpdatedAt) },
     ...(s.origin === "community" ? [] : [{ Icon: CalendarDays, label: "Сверено нами", value: fmtDate(s.sourceCheckedAt) }]),
@@ -291,9 +334,36 @@ function Passport({ s, me, summary, onSent, onClose, hideOnNarrow }: { s: Shelte
         ))}
       </dl>
 
-      <div className="routes">
-        <a className="btn" target="_blank" rel="noreferrer" href={`https://yandex.ru/maps/?rtext=~${s.lat},${s.lng}&rtt=pd`}><Route size={18} />Маршрут</a>
-        <a className="btn btn-ghost" target="_blank" rel="noreferrer" href={`https://2gis.ru/routeSearch/rsType/pedestrian/to/${s.lng},${s.lat}`}>2ГИС</a>
+      <div className="card route-card">
+        <h3><Route size={16} />Маршрут</h3>
+        {!route && (
+          <div className="route-btns">
+            <button className="btn" disabled={routeBusy} onClick={() => onRoute("foot")}><Footprints size={18} />{routeBusy ? "Строим…" : "Пешком"}</button>
+            <button className="btn btn-ghost-wide" disabled={routeBusy} onClick={() => onRoute("car")}><Car size={18} />На машине</button>
+          </div>
+        )}
+        {routeError && <p className="err">{routeError}</p>}
+        {route && (
+          <>
+            <div className="route-sum">
+              <span className="ico ico-blue">{route.mode === "foot" ? <Footprints size={18} /> : <Car size={18} />}</span>
+              <div><b>{fmtDist(route.distance)} · {fmtTime(route.duration)}</b><small>{route.mode === "foot" ? "пешком" : "на машине"}, оценка по открытым данным OSM</small></div>
+              <button className="icon-btn" aria-label="Сбросить маршрут" onClick={onClearRoute}><X size={18} /></button>
+            </div>
+            <details className="steps">
+              <summary><ListOrdered size={15} />Пошаговый маршрут ({route.steps.length})</summary>
+              <ol>{route.steps.map((st, i) => <li key={i}>{st.text}{st.distance > 0 && <small> · {fmtDist(st.distance)}</small>}</li>)}</ol>
+            </details>
+            <div className="route-btns">
+              <button className="btn btn-ghost-wide" onClick={() => onRoute(route.mode === "foot" ? "car" : "foot")}>{route.mode === "foot" ? <><Car size={16} />На машине</> : <><Footprints size={16} />Пешком</>}</button>
+            </div>
+          </>
+        )}
+        <div className="ext-links">
+          <a target="_blank" rel="noreferrer" href={`https://yandex.ru/maps/?rtext=~${s.lat},${s.lng}&rtt=pd`}>Открыть в Яндекс.Картах</a>
+          <a target="_blank" rel="noreferrer" href={`https://2gis.ru/routeSearch/rsType/pedestrian/to/${s.lng},${s.lat}`}>2ГИС</a>
+        </div>
+        <p className="note" style={{ margin: "6px 0 0" }}>Маршрут ориентировочный: проверяйте обстановку и следуйте указаниям МЧС.</p>
       </div>
 
       <div className="card reports">

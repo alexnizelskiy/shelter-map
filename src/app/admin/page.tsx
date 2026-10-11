@@ -4,10 +4,12 @@ import { connection } from "next/server";
 import { adminEnabled, isAdmin } from "@/lib/admin-auth";
 import { dbConfigured, ensureSchema, sql } from "@/lib/db";
 import { loadShelters } from "@/lib/shelters-server";
+import { loadCities } from "@/lib/cities-server";
 import { distanceKm, fmtDate, type Shelter } from "@/lib/shelters";
 import { BASIS_LABEL, REPORT_LABEL, SUGGEST_KIND_LABEL, type SuggestBasis, type SuggestKind } from "@/lib/reports";
 import { approveSuggestion, clearReports, logout, setHidden, setSuggestionState } from "./actions";
 import LoginForm from "./LoginForm";
+import Cities from "./Cities";
 
 export const metadata: Metadata = { title: "Модерация", robots: { index: false, follow: false } };
 
@@ -23,7 +25,7 @@ export default function AdminPage({ searchParams }: { searchParams: SP }) {
   );
 }
 
-const TABS = [["new", "Заявки"], ["need_info", "Уточнение"], ["problems", "Жалобы"], ["hidden", "Скрытые"], ["done", "Обработанные"]] as const;
+const TABS = [["new", "Заявки"], ["need_info", "Уточнение"], ["problems", "Жалобы"], ["hidden", "Скрытые"], ["done", "Обработанные"], ["cities", "Города и точки"]] as const;
 
 async function Content({ searchParams }: { searchParams: SP }) {
   await connection();
@@ -33,7 +35,8 @@ async function Content({ searchParams }: { searchParams: SP }) {
 
   await ensureSchema();
   const tab = (await searchParams).tab ?? "new";
-  const all = await loadShelters("rostov-na-donu", { includeHidden: true });
+  const cityList = await loadCities({ includeInactive: true });
+  const all = (await Promise.all(cityList.map((c) => loadShelters(c.slug, { includeHidden: true })))).flat();
   const byId = new Map(all.map((s) => [s.id, s]));
 
   const [cnt] = await sql()<{ n: number; ni: number; p: number }[]>`
@@ -55,7 +58,7 @@ async function Content({ searchParams }: { searchParams: SP }) {
           </a>
         ))}
       </nav>
-      {tab === "problems" ? <Problems byId={byId} /> : tab === "hidden" ? <Hidden byId={byId} /> : <Suggestions state={tab} all={all} />}
+      {tab === "cities" ? <Cities /> : tab === "problems" ? <Problems byId={byId} /> : tab === "hidden" ? <Hidden byId={byId} /> : <Suggestions state={tab} all={all} />}
     </>
   );
 }

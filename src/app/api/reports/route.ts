@@ -1,4 +1,4 @@
-import { getCity } from "@/lib/cities";
+import { loadCity } from "@/lib/cities-server";
 import { loadShelters } from "@/lib/shelters-server";
 import { REPORT_KINDS, REPORT_TTL_HOURS, WARN_WINDOW_HOURS, type ReportKind, type ReportSummary } from "@/lib/reports";
 import { dbConfigured, ensureSchema, sql, SUMMARY_SQL, REPORT_LIMIT_SQL } from "@/lib/db";
@@ -6,7 +6,7 @@ import { ipHash, json, readJson, clean } from "@/lib/api-utils";
 
 // Сводка сообщений жителей по городу. Без БД возвращаем пустой список, чтобы карта работала.
 export async function GET(req: Request) {
-  const city = getCity(new URL(req.url).searchParams.get("city") ?? "");
+  const city = await loadCity(new URL(req.url).searchParams.get("city") ?? "");
   if (!city) return json({ error: "Город не найден" }, 404);
   if (!dbConfigured()) return json({ reports: [], enabled: false });
   try {
@@ -25,9 +25,10 @@ export async function POST(req: Request) {
   if (!body) return json({ error: "Некорректный запрос" }, 400);
   const shelterId = clean(body.shelterId, 32);
   const kind = clean(body.kind, 20) as ReportKind;
+  const citySlug = clean(body.city, 60) || "rostov-na-donu";
   if (!REPORT_KINDS.includes(kind)) return json({ error: "Неизвестный тип сообщения" }, 400);
   if (!dbConfigured()) return json({ error: "Приём сообщений ещё не подключён" }, 503);
-  if (!(await loadShelters("rostov-na-donu")).some((s) => s.id === shelterId)) return json({ error: "Точка не найдена" }, 404);
+  if (!(await loadShelters(citySlug)).some((s) => s.id === shelterId)) return json({ error: "Точка не найдена" }, 404);
 
   try {
     await ensureSchema();

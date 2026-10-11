@@ -42,7 +42,7 @@ ALTER TABLE suggestions ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
 CREATE TABLE IF NOT EXISTS published_shelters (
   id            BIGSERIAL PRIMARY KEY,
   city_slug     TEXT NOT NULL,
-  kind          TEXT NOT NULL CHECK (kind IN ('other_shelter','help_point','unknown')),
+  kind          TEXT NOT NULL,
   address       TEXT NOT NULL,
   lat           DOUBLE PRECISION NOT NULL,
   lng           DOUBLE PRECISION NOT NULL,
@@ -50,6 +50,28 @@ CREATE TABLE IF NOT EXISTS published_shelters (
   source_url    TEXT,
   suggestion_id BIGINT,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE published_shelters DROP CONSTRAINT IF EXISTS published_shelters_kind_check;
+ALTER TABLE published_shelters ADD COLUMN IF NOT EXISTS object_type TEXT;
+ALTER TABLE published_shelters ADD COLUMN IF NOT EXISTS placement TEXT;
+ALTER TABLE published_shelters ADD COLUMN IF NOT EXISTS holder TEXT;
+ALTER TABLE published_shelters ADD COLUMN IF NOT EXISTS capacity INT;
+ALTER TABLE published_shelters ADD COLUMN IF NOT EXISTS origin TEXT NOT NULL DEFAULT 'community';
+
+-- Города, добавленные из админки (статические города лежат в коде).
+CREATE TABLE IF NOT EXISTS cities (
+  slug         TEXT PRIMARY KEY,
+  name         TEXT NOT NULL,
+  center_lng   DOUBLE PRECISION NOT NULL,
+  center_lat   DOUBLE PRECISION NOT NULL,
+  zoom         INT NOT NULL DEFAULT 11,
+  min_lng      DOUBLE PRECISION NOT NULL,
+  min_lat      DOUBLE PRECISION NOT NULL,
+  max_lng      DOUBLE PRECISION NOT NULL,
+  max_lat      DOUBLE PRECISION NOT NULL,
+  is_active    BOOLEAN NOT NULL DEFAULT true,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- Скрытие любой точки до проверки.
