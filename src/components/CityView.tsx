@@ -13,6 +13,7 @@ import type { City } from "@/lib/cities";
 import { REPORT_KINDS, REPORT_LABEL, REPORT_TTL_HOURS, WARN_THRESHOLD, flaggedIds, type ReportKind, type ReportSummary } from "@/lib/reports";
 import SuggestForm, { EMPTY_DRAFT, type Draft } from "./SuggestForm";
 import ThemeSwitch from "./ThemeSwitch";
+import AccessibilitySettings from "./AccessibilitySettings";
 import CitySearch from "./CitySearch";
 import LocationPrompt from "./LocationPrompt";
 import Checklist from "./Checklist";
@@ -309,6 +310,7 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
               <div className="large-title"><h2>Настройки</h2></div>
               <h2 style={{ display: "flex", gap: 8, alignItems: "center" }}><Palette size={16} />Оформление</h2>
               <ThemeSwitch />
+              <AccessibilitySettings />
               <h2 style={{ display: "flex", gap: 8, alignItems: "center" }}><MapIcon size={16} />Подложка карты</h2>
               <BasemapSwitch />
               <h2 style={{ display: "flex", gap: 8, alignItems: "center" }}><Info size={16} />О сервисе</h2>
