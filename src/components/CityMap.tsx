@@ -69,7 +69,19 @@ export default function CityMap({ center, zoom, shelters, selectedId, onSelect, 
       for (const [id, mk] of clusterMarkers) if (!seen.has(id)) { mk.remove(); clusterMarkers.delete(id); }
     };
 
+    const applyTheme = () => {
+      if (!m.getLayer("base")) return;
+      const dark = document.documentElement.dataset.theme === "dark";
+      m.setPaintProperty("base", "raster-brightness-min", dark ? 0.92 : 0);
+      m.setPaintProperty("base", "raster-brightness-max", dark ? 0.04 : 1);
+      m.setPaintProperty("base", "raster-hue-rotate", dark ? 180 : 0);
+      m.setPaintProperty("base", "raster-saturation", dark ? -0.35 : 0);
+    };
+    const themeObserver = new MutationObserver(applyTheme);
+    themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
     m.on("load", () => {
+      applyTheme();
       m.addSource(SRC, {
         type: "geojson",
         cluster: true,
@@ -88,7 +100,7 @@ export default function CityMap({ center, zoom, shelters, selectedId, onSelect, 
       m.on("render", syncClusters);
       ready.current = true;
     });
-    return () => { ready.current = false; clusterMarkers.clear(); m.remove(); };
+    return () => { ready.current = false; themeObserver.disconnect(); clusterMarkers.clear(); m.remove(); };
   }, [center, zoom]);
 
   // подсветка выбранной точки и перелёт к ней

@@ -2,22 +2,40 @@
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 import dynamic from "next/dynamic";
+import {
+  Building2, CalendarDays, ChevronRight, CircleAlert, DoorClosed, DoorOpen, Heart, Layers, LayoutGrid, Link2, List, LocateFixed,
+  Map as MapIcon, MapPin, MapPinPlus, Minus, Navigation, Palette, Plus, Route, Search, SearchX, Settings, ShieldCheck, TriangleAlert,
+  Users, X, Clock, Info, type LucideIcon,
+} from "lucide-react";
 import { KIND_LABEL, distanceKm, fmtDate, type Shelter } from "@/lib/shelters";
 import type { City } from "@/lib/cities";
 import { REPORT_KINDS, REPORT_LABEL, REPORT_TTL_HOURS, WARN_THRESHOLD, flaggedIds, type ReportKind, type ReportSummary } from "@/lib/reports";
 import SuggestForm, { EMPTY_DRAFT, type Draft } from "./SuggestForm";
+import ThemeSwitch from "./ThemeSwitch";
 
 const CityMap = dynamic(() => import("./CityMap"), { ssr: false });
 
-type Tab = "map" | "list" | "suggest" | "about";
+type Tab = "map" | "list" | "suggest" | "settings";
 const LIST_LIMIT = 100;
 const isNarrow = () => typeof window !== "undefined" && window.matchMedia("(max-width: 760px)").matches;
 
+const TABS: { key: Tab; label: string; Icon: LucideIcon }[] = [
+  { key: "map", label: "Карта", Icon: MapIcon },
+  { key: "list", label: "Список", Icon: List },
+  { key: "suggest", label: "Предложить", Icon: MapPinPlus },
+  { key: "settings", label: "Настройки", Icon: Settings },
+];
+
+const REPORT_ICON: Record<ReportKind, LucideIcon> = { open: DoorOpen, closed: DoorClosed, not_found: SearchX, wrong_info: CircleAlert };
+
 const title = (s: Shelter) => `${s.objectType}${s.placement ? ` в ${s.placement}` : ""}`;
+const iconFor = (s: Shelter): { Icon: LucideIcon; cls: string } =>
+  s.origin === "community"
+    ? s.kind === "help_point" ? { Icon: Heart, cls: "ico-blue" } : { Icon: MapPin, cls: "ico-gray" }
+    : { Icon: ShieldCheck, cls: "ico-green" };
 
 export default function CityView({ city, shelters }: { city: City; shelters: Shelter[] }) {
   const [tab, setTab] = useState<Tab>("map");
-  const [banner, setBanner] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [me, setMe] = useState<{ lat: number; lng: number } | null>(null);
@@ -43,7 +61,7 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
     setTab("suggest");
   }, []);
 
-  const pick = useCallback((id: string) => { setSelected(id); }, []);
+  const pick = useCallback((id: string) => setSelected(id), []);
   const pickFromList = (id: string) => { setSelected(id); if (isNarrow()) setTab("map"); };
 
   const byDistance = useCallback(
@@ -60,8 +78,9 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
   }, [query, me, byDistance, shelters]);
 
   const current = shelters.find((s) => s.id === selected) ?? null;
-  const updated = shelters.filter((s) => s.origin !== "community").map((s) => s.sourceUpdatedAt).sort().at(-1);
-  const totalCapacity = useMemo(() => shelters.reduce((a, s) => a + (s.capacity ?? 0), 0), [shelters]);
+  const official = useMemo(() => shelters.filter((s) => s.origin !== "community"), [shelters]);
+  const updated = official.map((s) => s.sourceUpdatedAt).sort().at(-1);
+  const totalCapacity = useMemo(() => official.reduce((a, s) => a + (s.capacity ?? 0), 0), [official]);
 
   const locate = () => {
     setGeoError(false);
@@ -72,90 +91,140 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
         const nearest = byDistance(pos)[0];
         if (nearest) { setSelected(nearest.id); setTab("map"); }
       },
-      () => setGeoError(true),
+      () => { setGeoError(true); setTab("map"); },
     );
   };
   const zoom = (d: number) => window.dispatchEvent(new CustomEvent("map-zoom", { detail: d }));
 
   return (
     <div className="app">
-      <CityMap center={city.center} zoom={city.zoom} shelters={shelters} selectedId={selected} onSelect={pick} me={me} flagged={flagged} picking={picking} picked={draft.lat != null && draft.lng != null ? { lat: draft.lat, lng: draft.lng } : null} onPick={onMapPick} />
-
-      {banner && (
-        <header className="banner">
-          <div>
-            <h1>Где укрыться — {city.name}</h1>
-            <p>
-              {shelters.length > 0
-                ? `${shelters.filter((x) => x.origin !== "community").length} защитных помещений по списку администрации города, данные источника от ${fmtDate(updated!)}. `
-                : "Данные по городу загружаются. "}
-              Справочная информация, не гарантия безопасности и доступности входа.
-            </p>
-          </div>
-          <button className="icon" aria-label="Закрыть" onClick={() => setBanner(false)}>×</button>
-        </header>
-      )}
+      <CityMap
+        center={city.center} zoom={city.zoom} shelters={shelters} selectedId={selected} onSelect={pick} me={me} flagged={flagged}
+        picking={picking} picked={draft.lat != null && draft.lng != null ? { lat: draft.lat, lng: draft.lng } : null} onPick={onMapPick}
+      />
 
       {picking && (
-        <div className="pick-hint">
-          Нажмите на карте место, которое хотите предложить
+        <div className="pick-hint glass">
+          <MapPin size={18} /> Нажмите на карте место, которое хотите предложить
           <button onClick={() => { setPicking(false); setTab("suggest"); }}>Отмена</button>
         </div>
       )}
 
-      <section className={`sheet ${tab === "map" ? "sheet-hidden" : ""}`}>
-        {tab === "list" && (
-          <>
-            <input className="search" type="search" placeholder="Поиск по адресу или организации" value={query} onChange={(e) => setQuery(e.target.value)} />
-            {geoError && <p className="note">Не удалось определить местоположение. Выберите точку из списка.</p>}
-            <p className="note">
-              {visible.total === 0 ? "Ничего не найдено." : `Найдено: ${visible.total}${visible.total > LIST_LIMIT ? `, показаны первые ${LIST_LIMIT}` : ""}${me ? ", по удалённости" : ""}`}
-            </p>
-            <ul className="list">
-              {visible.items.map((s) => (
-                <li key={s.id}>
-                  <button className={s.id === selected ? "item active" : "item"} onClick={() => pickFromList(s.id)}>
-                    <span className={`dot dot-${s.kind}`} />
-                    <span className="item-body">
-                      <strong>{s.address}</strong>
-                      {s.holder && <em>{s.holder}</em>}
-                      <small>
-                        {title(s)}{s.capacity ? ` · вместимость ${s.capacity} чел.` : ""}
-                        {me ? ` · ${distanceKm(me.lat, me.lng, s.lat, s.lng).toFixed(1)} км` : ""}
-                      </small>
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
-        {tab === "suggest" && (
-          <SuggestForm citySlug={city.slug} draft={draft} setDraft={setDraft} onPickOnMap={() => { setPicking(true); setTab("map"); }} />
-        )}
-        {tab === "about" && (
-          <div className="about">
-            <h2>О сервисе</h2>
-            <p>Мы показываем только места из открытых официальных источников. У каждой точки указан источник и дата данных.</p>
-            <p>Суммарная вместимость по списку: {totalCapacity.toLocaleString("ru-RU")} чел. Это заявленные источником значения, а не гарантия свободных мест.</p>
-            <p>Информация не гарантирует безопасность и доступность входа. Следуйте оповещениям МЧС.</p>
-          </div>
-        )}
-      </section>
+      <aside className="side">
+        <section className={`panel glass`} data-tab={tab}>
+          {tab === "map" && (
+            <>
+              <div className="large-title">
+                <h1>Где укрыться</h1>
+                <span className="chip-city"><MapPin size={14} />{city.name}</span>
+              </div>
+              <button className="primary" onClick={locate}><Navigation size={18} />Найти ближайшее</button>
+              {geoError && <p className="note">Не удалось определить местоположение. Откройте список и выберите точку вручную.</p>}
+              <div className="stats">
+                <div className="card stat">
+                  <span className="ico ico-green"><Building2 size={18} /></span>
+                  <b>{official.length.toLocaleString("ru-RU")}</b>
+                  <span>помещений в списке города</span>
+                </div>
+                <div className="card stat">
+                  <span className="ico ico-blue"><Users size={18} /></span>
+                  <b>{totalCapacity >= 1e6 ? `${(totalCapacity / 1e6).toFixed(2).replace(".", ",")} млн` : totalCapacity.toLocaleString("ru-RU")}</b>
+                  <span>заявленная вместимость</span>
+                </div>
+              </div>
+              <div className="card group">
+                <div className="group-row">
+                  <span className="ico ico-gray"><Clock size={16} /></span>
+                  <div>Данные администрации от {updated ? fmtDate(updated) : "—"}<small>Источник и дата указаны в паспорте каждой точки</small></div>
+                </div>
+                <div className="group-row">
+                  <span className="ico ico-amber"><TriangleAlert size={16} /></span>
+                  <div>Справочная информация<small>Не гарантия безопасности и доступности входа. Следуйте оповещениям МЧС.</small></div>
+                </div>
+              </div>
+              <div className="card legend">
+                <div><i style={{ background: "#16a34a" }} />Защитное помещение (список администрации)</div>
+                <div><i style={{ background: "#2f7cf6" }} />Пункт помощи</div>
+                <div><i style={{ background: "#8b93a1" }} />Добавлено жителями, не подтверждено официально</div>
+                <div><i style={{ background: "#d99a00" }} />Жители сообщают о проблеме со входом</div>
+              </div>
+            </>
+          )}
 
-      {current && !picking && <Passport key={current.id} s={current} me={me} summary={currentReport} onSent={loadReports} onClose={() => setSelected(null)} hideOnNarrow={tab !== "map"} />}
+          {tab === "list" && (
+            <>
+              <div className="large-title"><h2>Список</h2><span className="chip-city"><LayoutGrid size={14} />{visible.total}</span></div>
+              <div className="field-input">
+                <Search size={17} />
+                <input className="search" type="search" placeholder="Адрес или организация" value={query} onChange={(e) => setQuery(e.target.value)} />
+              </div>
+              <p className="note">
+                {visible.total === 0 ? "Ничего не найдено." : `${visible.total > LIST_LIMIT ? `Показаны первые ${LIST_LIMIT}` : "Найдено"}${me ? " · по удалённости" : ""}`}
+              </p>
+              <ul className="list">
+                {visible.items.map((s) => {
+                  const { Icon, cls } = iconFor(s);
+                  return (
+                    <li key={s.id}>
+                      <button className={s.id === selected ? "row active" : "row"} onClick={() => pickFromList(s.id)}>
+                        <span className={`ico ${flagged.includes(s.id) ? "ico-amber" : cls}`}>{flagged.includes(s.id) ? <TriangleAlert size={18} /> : <Icon size={18} />}</span>
+                        <span className="row-main">
+                          <b>{s.address}</b>
+                          {s.holder && <span>{s.holder}</span>}
+                          <small>
+                            {s.capacity ? `до ${s.capacity} чел.` : title(s)}
+                            {me ? ` · ${distanceKm(me.lat, me.lng, s.lat, s.lng).toFixed(1)} км` : ""}
+                          </small>
+                        </span>
+                        <ChevronRight size={18} className="chev" />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          )}
 
-      <div className="fabs">
-        <button className="fab" aria-label="Приблизить" onClick={() => zoom(1)}>+</button>
-        <button className="fab" aria-label="Отдалить" onClick={() => zoom(-1)}>−</button>
-        <button className="fab fab-accent" aria-label="Найти ближайшее" onClick={locate}>◎</button>
+          {tab === "suggest" && (
+            <SuggestForm citySlug={city.slug} draft={draft} setDraft={setDraft} onPickOnMap={() => { setPicking(true); setTab("map"); }} />
+          )}
+
+          {tab === "settings" && (
+            <div className="about">
+              <div className="large-title"><h2>Настройки</h2></div>
+              <h2 style={{ display: "flex", gap: 8, alignItems: "center" }}><Palette size={16} />Оформление</h2>
+              <ThemeSwitch />
+              <h2 style={{ display: "flex", gap: 8, alignItems: "center" }}><Info size={16} />О сервисе</h2>
+              <div className="card" style={{ padding: "6px 10px" }}>
+                <p>Мы показываем только места из открытых официальных источников. У каждой точки указан источник и дата данных.</p>
+                <p>Заявки жителей проверяет модератор. Сообщения о входе («открыт / закрыт») не меняют официальный статус и устаревают через {REPORT_TTL_HOURS} ч.</p>
+                <p>Информация не гарантирует безопасность и доступность входа. Следуйте оповещениям МЧС.</p>
+              </div>
+            </div>
+          )}
+        </section>
+
+        <nav className="dock glass" aria-label="Разделы">
+          {TABS.map(({ key, label, Icon }) => (
+            <button key={key} className={tab === key ? "dock-tab on" : "dock-tab"} onClick={() => setTab(key)} aria-current={tab === key}>
+              <Icon size={21} strokeWidth={2} />
+              <span>{label}</span>
+            </button>
+          ))}
+        </nav>
+      </aside>
+
+      {current && !picking && (
+        <Passport key={current.id} s={current} me={me} summary={currentReport} onSent={loadReports} onClose={() => setSelected(null)} hideOnNarrow={tab !== "map"} />
+      )}
+
+      <div className="controls">
+        <div className="zoom glass">
+          <button aria-label="Приблизить" onClick={() => zoom(1)}><Plus size={20} /></button>
+          <button aria-label="Отдалить" onClick={() => zoom(-1)}><Minus size={20} /></button>
+        </div>
+        <button className="locate" aria-label="Найти ближайшее" onClick={locate}><LocateFixed size={22} /></button>
       </div>
-
-      <nav className="tabs" aria-label="Разделы">
-        {([["list", "Список"], ["map", "Карта"], ["suggest", "Предложить"], ["about", "О сервисе"]] as const).map(([k, label]) => (
-          <button key={k} className={tab === k ? "tab on" : "tab"} onClick={() => setTab(k)}>{label}</button>
-        ))}
-      </nav>
     </div>
   );
 }
@@ -164,9 +233,10 @@ const ago = (iso: string) => {
   const min = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
   if (min < 1) return "только что";
   if (min < 60) return `${min} мин назад`;
-  const h = Math.floor(min / 60);
-  return `${h} ч назад`;
+  return `${Math.floor(min / 60)} ч назад`;
 };
+
+type PRow = { Icon: LucideIcon; label: string; value: React.ReactNode };
 
 function Passport({ s, me, summary, onSent, onClose, hideOnNarrow }: { s: Shelter; me: { lat: number; lng: number } | null; summary: ReportSummary | null; onSent: () => void; onClose: () => void; hideOnNarrow: boolean }) {
   const [sent, setSent] = useState<{ ok: boolean; text: string } | null>(null);
@@ -185,53 +255,71 @@ function Passport({ s, me, summary, onSent, onClose, hideOnNarrow }: { s: Shelte
     }
   };
   const warn = summary && summary.problems6h >= WARN_THRESHOLD;
-  const rows: [string, React.ReactNode][] = [
-    ["Тип объекта", s.objectType],
-    ...(s.placement ? ([["Расположение", `в ${s.placement}`]] as [string, string][]) : []),
-    ["Адрес", s.address],
-    ...(s.holder ? ([["Организация / ориентир", s.holder]] as [string, string][]) : []),
-    ["Вместимость", s.capacity ? `${s.capacity.toLocaleString("ru-RU")} чел.` : "не указана"],
-    ["Категория", KIND_LABEL[s.kind]],
-    ...(me ? ([["Расстояние", `${distanceKm(me.lat, me.lng, s.lat, s.lng).toFixed(1)} км`]] as [string, string][]) : []),
-    s.origin === "community"
-      ? ["Источник", "Заявка жителя, проверена модератором. Не из официального списка."]
-      : ["Источник", <a key="src" href={s.sourceUrl} target="_blank" rel="noreferrer">Карта администрации города</a>],
-    [s.origin === "community" ? "Добавлено" : "Данные источника от", fmtDate(s.sourceUpdatedAt)],
-    ...(s.origin === "community" ? [] : ([["Сверено нами", fmtDate(s.sourceCheckedAt)]] as [string, string][])),
+  const { Icon: HeadIcon, cls } = iconFor(s);
+
+  const rows: PRow[] = [
+    { Icon: Layers, label: "Тип объекта", value: title(s) },
+    ...(s.holder ? [{ Icon: Building2, label: "Организация / ориентир", value: s.holder }] : []),
+    { Icon: Users, label: "Вместимость", value: s.capacity ? `${s.capacity.toLocaleString("ru-RU")} чел.` : "не указана" },
+    { Icon: ShieldCheck, label: "Категория", value: KIND_LABEL[s.kind] },
+    ...(me ? [{ Icon: Navigation, label: "Расстояние", value: `${distanceKm(me.lat, me.lng, s.lat, s.lng).toFixed(1)} км` }] : []),
+    {
+      Icon: Link2, label: "Источник",
+      value: s.origin === "community"
+        ? "Заявка жителя, проверена модератором. Не из официального списка."
+        : <a href={s.sourceUrl} target="_blank" rel="noreferrer">Карта администрации города</a>,
+    },
+    { Icon: CalendarDays, label: s.origin === "community" ? "Добавлено" : "Данные источника от", value: fmtDate(s.sourceUpdatedAt) },
+    ...(s.origin === "community" ? [] : [{ Icon: CalendarDays, label: "Сверено нами", value: fmtDate(s.sourceCheckedAt) }]),
   ];
+
   return (
-    <aside className={`passport ${hideOnNarrow ? "passport-hide" : ""}`}>
+    <aside className={`passport glass ${hideOnNarrow ? "passport-hide" : ""}`}>
       <div className="passport-head">
+        <span className={`ico ${cls}`}><HeadIcon size={20} /></span>
         <h2>Паспорт укрытия</h2>
-        <button className="icon" aria-label="Закрыть" onClick={onClose}>×</button>
+        <button className="icon-btn" aria-label="Закрыть" onClick={onClose}><X size={18} /></button>
       </div>
-      <dl>
-        {rows.map(([k, v]) => (
-          <div key={k} className="row"><dt>{k}</dt><dd>{v}</dd></div>
+      <p className="passport-addr">{s.address}</p>
+
+      <dl className="card rows">
+        {rows.map(({ Icon, label, value }) => (
+          <div key={label} className="group-row">
+            <span className="ico ico-gray"><Icon size={16} /></span>
+            <div><dt>{label}</dt><dd>{value}</dd></div>
+          </div>
         ))}
       </dl>
+
       <div className="routes">
-        <a className="btn" target="_blank" rel="noreferrer" href={`https://yandex.ru/maps/?rtext=~${s.lat},${s.lng}&rtt=pd`}>Маршрут в Яндекс.Картах</a>
+        <a className="btn" target="_blank" rel="noreferrer" href={`https://yandex.ru/maps/?rtext=~${s.lat},${s.lng}&rtt=pd`}><Route size={18} />Маршрут</a>
         <a className="btn btn-ghost" target="_blank" rel="noreferrer" href={`https://2gis.ru/routeSearch/rsType/pedestrian/to/${s.lng},${s.lat}`}>2ГИС</a>
       </div>
-      <div className="reports">
-        <h3>Сообщения жителей</h3>
-        {warn && <p className="warn">Жители сообщают о проблеме со входом. Это не подтверждено, будьте внимательны.</p>}
+
+      <div className="card reports">
+        <h3><Users size={16} />Сообщения жителей</h3>
+        {warn && <p className="warn"><TriangleAlert size={16} style={{ flex: "none" }} />Жители сообщают о проблеме со входом. Это не подтверждено, будьте внимательны.</p>}
         {summary ? (
           <ul className="rep-list">
             {REPORT_KINDS.filter((k) => summary[k] > 0).map((k) => <li key={k}>{REPORT_LABEL[k]}: {summary[k]}</li>)}
-            <li className="note">Последнее: «{REPORT_LABEL[summary.lastKind]}», {ago(summary.lastAt)}. Учитываются сообщения за {REPORT_TTL_HOURS} ч; актуальность не гарантируется.</li>
+            <li className="note" style={{ margin: 0 }}>Последнее: «{REPORT_LABEL[summary.lastKind]}», {ago(summary.lastAt)}. Учитываются сообщения за {REPORT_TTL_HOURS} ч; актуальность не гарантируется.</li>
           </ul>
         ) : (
-          <p className="note">За последние {REPORT_TTL_HOURS} ч сообщений нет. Состояние входа не подтверждено.</p>
+          <p className="note" style={{ marginLeft: 0 }}>За последние {REPORT_TTL_HOURS} ч сообщений нет. Состояние входа не подтверждено.</p>
         )}
         <div className="rep-btns">
-          {REPORT_KINDS.map((k) => <button key={k} disabled={busy} onClick={() => send(k)}>{REPORT_LABEL[k]}</button>)}
+          {REPORT_KINDS.map((k) => {
+            const I = REPORT_ICON[k];
+            return <button key={k} disabled={busy} onClick={() => send(k)}><I size={18} />{REPORT_LABEL[k]}</button>;
+          })}
         </div>
         {sent && <p className={sent.ok ? "ok" : "err"}>{sent.text}</p>}
-        <p className="note">Сообщайте только то, что заметили сами. Не подвергайте себя опасности ради проверки.</p>
+        <p className="note" style={{ marginLeft: 0 }}>Сообщайте только то, что заметили сами. Не подвергайте себя опасности ради проверки.</p>
       </div>
-      <p className="note">{s.origin === "community" ? "Точка добавлена по сообщению жителя и не подтверждена официальным источником." : "Данные взяты из списка администрации и могут устареть."} Вместимость и доступность входа не гарантируются.</p>
+
+      <p className="note">
+        {s.origin === "community" ? "Точка добавлена по сообщению жителя и не подтверждена официальным источником." : "Данные взяты из списка администрации и могут устареть."} Вместимость и доступность входа не гарантируются.
+      </p>
     </aside>
   );
 }

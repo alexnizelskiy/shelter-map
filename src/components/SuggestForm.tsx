@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { CheckCircle2, LocateFixed, MapPin, Send } from "lucide-react";
 import { BASIS_LABEL, SUGGEST_BASIS, SUGGEST_KIND_LABEL, SUGGEST_KINDS, type SuggestBasis, type SuggestKind } from "@/lib/reports";
 
 export type Draft = {
@@ -58,7 +59,7 @@ export default function SuggestForm({ citySlug, draft, setDraft, onPickOnMap }: 
   if (state.type === "ok")
     return (
       <div className="about">
-        <h2>Заявка отправлена</h2>
+        <div className="large-title"><h2>Заявка отправлена</h2><span className="ico ico-green"><CheckCircle2 size={20} /></span></div>
         <p>Спасибо! Заявка попадёт в очередь проверки и не появится на карте сразу. Мы сверим её с официальными источниками.</p>
         <button className="btn-plain" onClick={() => setState({ type: "idle" })}>Предложить ещё одно место</button>
       </div>
@@ -66,7 +67,7 @@ export default function SuggestForm({ citySlug, draft, setDraft, onPickOnMap }: 
 
   return (
     <form className="form" onSubmit={submit}>
-      <h2>Предложить место</h2>
+      <div className="large-title"><h2>Предложить место</h2></div>
       <p className="note">Не ходите к объектам специально и не фотографируйте охраняемые помещения. Сообщайте только то, что заметили в обычных обстоятельствах.</p>
 
       <label>Что это за объект?
@@ -82,8 +83,8 @@ export default function SuggestForm({ citySlug, draft, setDraft, onPickOnMap }: 
       <div className="field">
         <span>Точка на карте *</span>
         <div className="row-btns">
-          <button type="button" className="btn-plain" onClick={onPickOnMap}>Указать на карте</button>
-          <button type="button" className="btn-plain" onClick={useMyLocation}>Моё местоположение</button>
+          <button type="button" className="btn-plain" onClick={onPickOnMap}><MapPin size={16} />Указать на карте</button>
+          <button type="button" className="btn-plain" onClick={useMyLocation}><LocateFixed size={16} />Моё местоположение</button>
         </div>
         <small className="note">{draft.lat != null && draft.lng != null ? `Выбрано: ${draft.lat.toFixed(5)}, ${draft.lng.toFixed(5)}` : "Точка не выбрана"}</small>
       </div>
@@ -113,7 +114,7 @@ export default function SuggestForm({ citySlug, draft, setDraft, onPickOnMap }: 
 
       {state.type === "error" && <p className="err">{state.text}</p>}
       <button className="primary" disabled={state.type === "sending" || !draft.consent || draft.lat == null}>
-        {state.type === "sending" ? "Отправляем…" : "Отправить на проверку"}
+        <Send size={17} />{state.type === "sending" ? "Отправляем…" : "Отправить на проверку"}
       </button>
     </form>
   );
