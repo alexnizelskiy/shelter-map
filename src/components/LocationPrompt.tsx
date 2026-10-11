@@ -4,6 +4,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { LocateFixed, MapPin, X } from "lucide-react";
 import { usePref } from "@/lib/use-pref";
+import Spinner from "./Spinner";
 import { CHOICE_KEY, useRecent, type PlaceResult } from "./CitySearch";
 
 type State = { kind: "detecting" } | { kind: "found"; place: PlaceResult; precise: boolean } | { kind: "none" };
@@ -60,7 +61,7 @@ export default function LocationPrompt({ current, onChooseOther }: { current?: s
   return (
     <div className="loc-prompt glass" role="dialog" aria-label="Подтверждение местоположения">
       <button className="icon-btn" aria-label="Закрыть" onClick={() => setHidden(true)}><X size={16} /></button>
-      {state.kind === "detecting" && <p className="loc-text"><LocateFixed size={18} className="spin" />Определяем ваше местоположение…</p>}
+      {state.kind === "detecting" && <p className="loc-text"><Spinner size={18} />&nbsp;Определяем ваше местоположение…</p>}
       {state.kind === "found" && (
         <>
           <span className="ico ico-green"><MapPin size={20} /></span>

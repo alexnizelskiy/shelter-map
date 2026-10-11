@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CheckCircle2, LocateFixed, MapPin, Send } from "lucide-react";
 import GlassSelect from "./GlassSelect";
+import Spinner from "./Spinner";
 import { BASIS_LABEL, SUGGEST_BASIS, SUGGEST_KIND_LABEL, SUGGEST_KINDS, type SuggestBasis, type SuggestKind } from "@/lib/reports";
 
 export type Draft = {
@@ -113,7 +114,7 @@ export default function SuggestForm({ citySlug, draft, setDraft, onPickOnMap }: 
 
       {state.type === "error" && <p className="err">{state.text}</p>}
       <button className="primary" disabled={state.type === "sending" || !draft.consent || draft.lat == null}>
-        <Send size={17} />{state.type === "sending" ? "Отправляем…" : "Отправить на проверку"}
+        {state.type === "sending" ? <Spinner size={17} /> : <Send size={17} />}{state.type === "sending" ? "Отправляем…" : "Отправить на проверку"}
       </button>
     </form>
   );

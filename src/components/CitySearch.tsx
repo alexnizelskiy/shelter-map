@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Clock, MapPin, Search, X, Building2 } from "lucide-react";
 import { usePref } from "@/lib/use-pref";
+import { RowsSkeleton } from "./skeletons";
 
 export type PlaceResult = { id: number; name: string; region: string; lat: number; lng: number; pop: number; slug: string; hasData: boolean };
 type Recent = { slug: string; name: string; region: string };
@@ -64,7 +65,7 @@ export default function CitySearch({ onClose, current, hideClose }: { onClose: (
       </div>
 
       {loading ? (
-        <p className="note">Ищем…</p>
+        <RowsSkeleton n={5} />
       ) : results === null ? (
         recent.list.length > 0 && (
           <>

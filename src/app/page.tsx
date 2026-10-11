@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { loadCities } from "@/lib/cities-server";
 import HomeSearch from "@/components/HomeSearch";
+import { HomeSkeleton } from "@/components/skeletons";
 
 async function Cities() {
   const cities = await loadCities();
@@ -23,7 +24,7 @@ export default function Home() {
       <h1>Карта укрытий</h1>
       <p className="note" style={{ margin: "0 0 16px" }}>Найдите свой город, посёлок или село. Мы покажем карту и ближайшие укрытия.</p>
       <HomeSearch />
-      <Suspense fallback={null}>
+      <Suspense fallback={<HomeSkeleton />}>
         <Cities />
       </Suspense>
     </main>

@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 import { login } from "./actions";
+import Spinner from "@/components/Spinner";
 
 export default function LoginForm() {
   const [state, action, pending] = useActionState(login, undefined);
@@ -17,7 +18,7 @@ export default function LoginForm() {
         </button>
       </div>
       {state?.error && <p className="err">{state.error}</p>}
-      <button className="primary" disabled={pending}>{pending ? "Проверяем…" : "Войти"}</button>
+      <button className="primary" disabled={pending}>{pending && <Spinner size={18} />}{pending ? "Проверяем…" : "Войти"}</button>
     </form>
   );
 }

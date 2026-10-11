@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import CityView from "@/components/CityView";
+import { CityPageSkeleton } from "@/components/skeletons";
 import { CITIES, getCity } from "@/lib/cities";
 import { loadAnyCity } from "@/lib/cities-server";
 import { loadShelters } from "@/lib/shelters-server";
@@ -21,7 +22,7 @@ async function City({ params }: { params: Promise<{ city: string }> }) {
 
 export default function CityPage({ params }: { params: Promise<{ city: string }> }) {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<CityPageSkeleton />}>
       <City params={params} />
     </Suspense>
   );

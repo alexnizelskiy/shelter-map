@@ -17,12 +17,13 @@ import CitySearch from "./CitySearch";
 import LocationPrompt from "./LocationPrompt";
 import Checklist from "./Checklist";
 import ChatPanel from "./ChatPanel";
+import Spinner from "./Spinner";
 import { useNavigation, type NavState, type Variant } from "@/lib/useNavigation";
 import { formatClock, roundDist, type LngLat, type NavStep } from "@/lib/nav";
 import BasemapSwitch, { useBasemapId } from "./BasemapSwitch";
 import { getBasemap } from "@/lib/basemaps";
 
-const CityMap = dynamic(() => import("./CityMap"), { ssr: false });
+const CityMap = dynamic(() => import("./CityMap"), { ssr: false, loading: () => <div className="map-skel" aria-hidden="true" /> });
 
 type Tab = "map" | "list" | "chat" | "suggest" | "settings";
 const LIST_LIMIT = 100;
@@ -472,7 +473,7 @@ function Passport({ citySlug, route, variantIdx, onVariant, onStartNav, routeBus
         <h3><Route size={16} />Маршрут</h3>
         {!route && (
           <div className="route-btns">
-            <button className="btn" disabled={routeBusy} onClick={() => onRoute("foot")}><Footprints size={18} />{routeBusy ? "Строим…" : "Пешком"}</button>
+            <button className="btn" disabled={routeBusy} onClick={() => onRoute("foot")}>{routeBusy ? <Spinner size={18} /> : <Footprints size={18} />}{routeBusy ? "Строим маршрут…" : "Пешком"}</button>
             <button className="btn btn-ghost-wide" disabled={routeBusy} onClick={() => onRoute("car")}><Car size={18} />На машине</button>
           </div>
         )}
@@ -550,7 +551,7 @@ function Passport({ citySlug, route, variantIdx, onVariant, onStartNav, routeBus
               <span>Подтверждаю: снято с общедоступного места, на фото нет людей, лиц, номеров автомобилей, охраны, схем и планов объекта.</span>
             </label>
             <div className="route-btns">
-              <button className="btn" disabled={!agree || photoBusy} onClick={sendPhoto}>{photoBusy ? "Отправляем…" : "Отправить на проверку"}</button>
+              <button className="btn" disabled={!agree || photoBusy} onClick={sendPhoto}>{photoBusy && <Spinner size={16} />}{photoBusy ? "Отправляем…" : "Отправить на проверку"}</button>
               <button className="btn btn-ghost-wide" onClick={() => setDraft(null)}>Отмена</button>
             </div>
           </div>
@@ -576,7 +577,7 @@ function NavOverlay({ nav, error, target, follow, voice, rerouting, onVoice, onR
     <>
       <div className="nav-top glass" role="status" aria-live="polite">
         {!nav ? (
-          <p className="nav-wait">{error ?? "Определяем ваше местоположение…"}</p>
+          <p className="nav-wait">{!error && <Spinner size={20} />}{error ?? "Определяем ваше местоположение…"}</p>
         ) : nav.arrived ? (
           <>
             <span className="nav-ico done"><Flag size={30} /></span>
@@ -602,7 +603,7 @@ function NavOverlay({ nav, error, target, follow, voice, rerouting, onVoice, onR
               <span>{roundDist(nav.remaining)} · прибытие {formatClock(nav.arrival)}</span>
               <small>{target?.address}</small>
             </>
-          ) : <span>{error ?? "Ждём сигнал GPS…"}</span>}
+          ) : <span className="nav-wait-row">{!error && <Spinner size={16} />}{error ?? "Ждём сигнал GPS…"}</span>}
         </div>
         <button className="icon-btn big" aria-label={voice ? "Выключить голос" : "Включить голос"} aria-pressed={voice} onClick={onVoice}>{voice ? <Volume2 size={20} /> : <VolumeX size={20} />}</button>
         {!follow && <button className="icon-btn big accent" aria-label="Вернуться к моей позиции" onClick={onRecenter}><LocateFixed size={20} /></button>}

@@ -380,3 +380,17 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .who .avatar { width: 22px; height: 22px; font-size: 9px; } .who > span:not(.avatar) { flex: 1; }
 .who button { display: inline-flex; gap: 4px; align-items: center; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; }
 @media (max-width: 760px) { .panel[data-tab="chat"] { height: 72dvh; max-height: 72dvh; } .dock-tab span { font-size: 10px; } }
+
+/* ───────── Загрузка: скелетоны и спиннер ───────── */
+.skel { display: block; background: linear-gradient(100deg, var(--field) 30%, color-mix(in srgb, var(--fg) 14%, transparent) 50%, var(--field) 70%); background-size: 220% 100%; animation: shimmer 1.4s ease-in-out infinite; }
+@keyframes shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+.skel-row { cursor: default; }
+.skel-bubble { display: grid; gap: 7px; cursor: default; }
+.map-skel { position: absolute; inset: 0; background: linear-gradient(110deg, #e4e8ec 30%, #eef1f4 50%, #e4e8ec 70%); background-size: 220% 100%; animation: shimmer 1.8s ease-in-out infinite; }
+:root[data-theme="dark"] .map-skel { background: linear-gradient(110deg, #14181d 30%, #1b2027 50%, #14181d 70%); background-size: 220% 100%; }
+.spinner { animation: spin 0.9s linear infinite; flex: none; }
+.home-skel { margin: 8px 0 14px; }
+@media (prefers-reduced-motion: reduce) { .skel, .map-skel { animation: none; } .spinner { animation-duration: 2.5s; } }
+.nav-wait { display: flex; align-items: center; gap: 10px; }
+.nav-wait-row { display: inline-flex; align-items: center; gap: 8px; }
+.btn:disabled { opacity: .85; }

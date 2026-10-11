@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CornerUpLeft, Flag, LogOut, Send, Smile, Trash2, Users, X, MapPin, ChevronDown, Clock } from "lucide-react";
 import { CHAT_MAX_LEN, REACTIONS } from "@/lib/chat-meta";
+import { ChatSkeleton } from "./skeletons";
+import Spinner from "./Spinner";
 
 type Msg = {
   id: number; userId: number; name: string; avatar: string | null; moderator: boolean; text: string; at: string;
@@ -157,7 +159,7 @@ export default function ChatPanel({ room, cityName, returnPath, onPickCity }: { 
     load();
   };
 
-  if (!data) return <div className="chat"><p className="note">Загружаем чат…</p></div>;
+  if (!data) return <ChatSkeleton />;
 
   if (!data.enabled) {
     return (
@@ -237,7 +239,7 @@ export default function ChatPanel({ room, cityName, returnPath, onPickCity }: { 
                 value={text} maxLength={CHAT_MAX_LEN} placeholder="Сообщение (только текст, без ссылок)" aria-label="Сообщение"
                 onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }}
               />
-              <button className="send" aria-label="Отправить" disabled={busy || !text.trim()} onClick={send}><Send size={18} /></button>
+              <button className="send" aria-label="Отправить" disabled={busy || !text.trim()} onClick={send}>{busy ? <Spinner size={18} /> : <Send size={18} />}</button>
             </div>
           )}
           <div className="who"><Avatar name={data.me.name} src={data.me.avatar} id={data.me.id} /><span>{data.me.name}</span><button onClick={logout}><LogOut size={14} />Выйти</button></div>

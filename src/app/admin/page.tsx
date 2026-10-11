@@ -9,6 +9,7 @@ import { distanceKm, fmtDate, type Shelter } from "@/lib/shelters";
 import { BASIS_LABEL, REPORT_LABEL, SUGGEST_KIND_LABEL, type SuggestBasis, type SuggestKind } from "@/lib/reports";
 import { approvePhoto, rejectPhoto, approveSuggestion, clearReports, logout, setHidden, setSuggestionState } from "./actions";
 import LoginForm from "./LoginForm";
+import { AdminSkeleton } from "@/components/skeletons";
 import Cities from "./Cities";
 import Chat from "./Chat";
 
@@ -19,7 +20,7 @@ type SP = Promise<{ tab?: string }>;
 export default function AdminPage({ searchParams }: { searchParams: SP }) {
   return (
     <main className="adm">
-      <Suspense fallback={<p>Загрузка…</p>}>
+      <Suspense fallback={<AdminSkeleton />}>
         <Content searchParams={searchParams} />
       </Suspense>
     </main>
