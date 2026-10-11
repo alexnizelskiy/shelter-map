@@ -1,5 +1,6 @@
 import postgres from "postgres";
 import { cleanEnv } from "./env";
+import { parseDbUrl } from "./db-url";
 
 const dbUrl = () => cleanEnv(process.env.DATABASE_URL, "DATABASE_URL", true);
 
@@ -134,10 +135,19 @@ SELECT count(*)::int AS n FROM suggestions WHERE ip_hash = $1 AND created_at > n
 
 export function sql() {
   if (!g.__pg) {
-    g.__pg = postgres(dbUrl(), {
-      ssl: cleanEnv(process.env.DATABASE_SSL) === "disable" ? false : "require",
+    const cfg = parseDbUrl(dbUrl());
+    if (!cfg) throw Object.assign(new Error("Не удалось разобрать DATABASE_URL"), { code: "BAD_DATABASE_URL" });
+    const noSsl = cleanEnv(process.env.DATABASE_SSL) === "disable" || cfg.sslmode === "disable";
+    g.__pg = postgres({
+      host: cfg.host,
+      port: cfg.port,
+      username: cfg.user,
+      password: cfg.password,
+      database: cfg.database,
+      ssl: noSsl ? false : "require",
       max: Number(cleanEnv(process.env.DATABASE_POOL)) || 3,
       idle_timeout: 20,
+      connect_timeout: 10,
       prepare: false, // совместимо с пулерами соединений
     });
   }

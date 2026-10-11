@@ -20,6 +20,8 @@ export async function GET() {
   } catch (e) {
     const code = (e as { code?: string; name?: string }).code ?? (e as Error).name ?? "unknown";
     const hints: Record<string, string> = {
+      BAD_DATABASE_URL: "Строка DATABASE_URL не распознана. Формат: postgresql://пользователь:пароль@хост:5432/база. Без пробелов, кавычек и переносов строки.",
+      ERR_INVALID_URL: "Строка DATABASE_URL не распознана. Формат: postgresql://пользователь:пароль@хост:5432/база. Без пробелов, кавычек и переносов строки.",
       ECONNREFUSED: "База недоступна по адресу из DATABASE_URL. Проверьте хост/порт и разрешённые IP (у Vercel IP динамические — нужен доступ из любых адресов).",
       ETIMEDOUT: "Таймаут подключения. Скорее всего база не принимает соединения с адресов Vercel — откройте доступ из интернета или используйте пулер.",
       ENOTFOUND: "Не найден хост из DATABASE_URL. Проверьте адрес.",
