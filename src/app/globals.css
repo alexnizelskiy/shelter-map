@@ -23,7 +23,7 @@ a { color: var(--accent); }
 .about h2 { margin:0 0 8px; font-size:17px; } .about p { font-size:14px; color:var(--muted); }
 .dot { flex:none; width:12px; height:12px; border-radius:50%; margin-top:4px; }
 .dot-official_shelter, .pin-official_shelter { background:#1f9d55; }
-.dot-other_shelter, .pin-other_shelter { background:#e0a100; }
+.dot-other_shelter, .pin-other_shelter { background:#1f9d55; }
 .dot-help_point, .pin-help_point { background:#1b6ef3; }
 .dot-unknown, .pin-unknown { background:#8b93a1; }
 .pin { width:22px; height:22px; border-radius:50%; border:3px solid #fff; cursor:pointer; box-shadow:0 1px 4px rgba(0,0,0,.4); padding:0; }
@@ -38,4 +38,19 @@ a { color: var(--accent); }
 @media (max-width:760px) {
   .sheet { left:8px; right:8px; width:auto; top:auto; height:55dvh; bottom:84px; }
   .banner { padding:10px 14px; } .banner h1 { font-size:15px; }
+}
+.search { width:100%; padding:11px 14px; margin-bottom:8px; border-radius:12px; border:1px solid var(--line); background:transparent; color:inherit; font:inherit; }
+.cluster { min-width:34px; height:34px; padding:0 6px; border-radius:999px; border:3px solid #fff; background:#1f9d55; color:#fff; font:600 13px system-ui; cursor:pointer; box-shadow:0 1px 6px rgba(0,0,0,.35); }
+.passport { position:absolute; z-index:5; left:412px; top:100px; width:340px; max-height:calc(100dvh - 190px); overflow:auto; padding:16px; border-radius:20px; background:var(--card); box-shadow:0 8px 30px rgba(0,0,0,.2); backdrop-filter:blur(10px); }
+.passport-head { display:flex; justify-content:space-between; align-items:center; }
+.passport h2 { margin:0; font-size:17px; }
+.passport dl { margin:12px 0; }
+.row { display:grid; grid-template-columns:120px 1fr; gap:8px; padding:7px 0; border-bottom:1px solid var(--line); font-size:14px; }
+.row dt { color:var(--muted); } .row dd { margin:0; word-break:break-word; }
+.routes { display:flex; gap:8px; margin-bottom:8px; }
+.btn { flex:1; text-align:center; padding:12px; border-radius:12px; background:var(--accent); color:#fff; text-decoration:none; font-weight:600; font-size:14px; }
+.btn-ghost { flex:none; background:transparent; color:var(--accent); border:1px solid var(--accent); }
+@media (max-width:760px) {
+  .passport { left:8px; right:8px; top:auto; bottom:84px; width:auto; max-height:60dvh; }
+  .passport-hide { display:none; }
 }

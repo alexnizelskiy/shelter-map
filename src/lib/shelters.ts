@@ -5,13 +5,16 @@ export type ShelterKind = "official_shelter" | "other_shelter" | "help_point" | 
 export type Shelter = {
   id: string;
   kind: ShelterKind;
+  objectType: string; // как назван объект в источнике, напр. «Заглубленное помещение»
+  placement?: string; // «здании» / «МКД»
   address: string;
-  landmark?: string;
+  holder?: string; // организация / ориентир из источника
   capacity?: number;
   lat: number;
   lng: number;
   sourceUrl: string;
-  sourceCheckedAt: string; // ISO date
+  sourceUpdatedAt: string; // дата обновления данных самим источником
+  sourceCheckedAt: string; // когда мы сверили с источником
 };
 
 const BY_CITY: Record<string, Shelter[]> = {
@@ -22,10 +25,12 @@ export const getShelters = (citySlug: string): Shelter[] => BY_CITY[citySlug] ??
 
 export const KIND_LABEL: Record<ShelterKind, string> = {
   official_shelter: "Убежище (официальный список)",
-  other_shelter: "Другое укрытие",
+  other_shelter: "Защитное помещение (список администрации)",
   help_point: "Пункт помощи",
   unknown: "Тип не подтверждён",
 };
+
+export const fmtDate = (iso: string) => iso.split("-").reverse().join(".");
 
 export function distanceKm(aLat: number, aLng: number, bLat: number, bLng: number) {
   const r = Math.PI / 180;
