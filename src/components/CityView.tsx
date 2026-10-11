@@ -1,17 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import dynamic from "next/dynamic";
 import {
   Building2, CalendarDays, ChevronRight, CircleAlert, DoorClosed, DoorOpen, Heart, Layers, LayoutGrid, Link2, List, LocateFixed,
   Map as MapIcon, MapPin, MapPinPlus, Minus, Navigation, Palette, Plus, Route, Search, SearchX, Settings, ShieldCheck, TriangleAlert,
-  Users, X, Clock, Info, Car, Footprints, ListOrdered, type LucideIcon,
+  Users, X, Clock, Info, ChevronDown, Car, Camera, Footprints, ListOrdered, type LucideIcon,
 } from "lucide-react";
+import { compressImage } from "@/lib/image";
 import { KIND_LABEL, distanceKm, fmtDate, type Shelter } from "@/lib/shelters";
 import type { City } from "@/lib/cities";
 import { REPORT_KINDS, REPORT_LABEL, REPORT_TTL_HOURS, WARN_THRESHOLD, flaggedIds, type ReportKind, type ReportSummary } from "@/lib/reports";
 import SuggestForm, { EMPTY_DRAFT, type Draft } from "./SuggestForm";
 import ThemeSwitch from "./ThemeSwitch";
+import CitySearch from "./CitySearch";
+import LocationPrompt from "./LocationPrompt";
 import BasemapSwitch, { useBasemapId } from "./BasemapSwitch";
 import { getBasemap } from "@/lib/basemaps";
 
@@ -55,6 +58,7 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
   const [bmId] = useBasemapId();
   const basemap = getBasemap(bmId);
   const [layersOpen, setLayersOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [route, setRoute] = useState<RouteInfo | null>(null);
   const [routeBusy, setRouteBusy] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
@@ -139,7 +143,7 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
       <CityMap
         center={city.center} zoom={city.zoom} shelters={shelters} selectedId={selected} onSelect={pick} me={me} flagged={flagged}
         picking={picking} picked={draft.lat != null && draft.lng != null ? { lat: draft.lat, lng: draft.lng } : null} onPick={onMapPick}
-        basemap={basemap} route={route?.coords ?? null}
+        basemap={basemap} fit={city.fit} route={route?.coords ?? null}
       />
 
       {picking && (
@@ -149,17 +153,29 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
         </div>
       )}
 
+      <LocationPrompt current={city.slug} onChooseOther={() => setSearchOpen(true)} />
+
       <aside className="side">
-        <section className={`panel glass`} data-tab={tab}>
-          {tab === "map" && (
+        <section className="panel glass" data-tab={tab} data-search={searchOpen || undefined}>
+          {searchOpen && <CitySearch current={city.slug} onClose={() => setSearchOpen(false)} />}
+
+          {!searchOpen && tab === "map" && (
             <>
               <div className="large-title">
                 <h1>Где укрыться</h1>
-                <span className="chip-city"><MapPin size={14} />{city.name}</span>
+                <button className="chip-city btn-like" onClick={() => setSearchOpen(true)} aria-label="Выбрать город"><MapPin size={14} />{city.name}<ChevronDown size={14} /></button>
               </div>
               <button className="primary" onClick={locate}><Navigation size={18} />Найти ближайшее</button>
               {geoError && <p className="note">Не удалось определить местоположение. Откройте список и выберите точку вручную.</p>}
-              <div className="stats">
+              {shelters.length === 0 && (
+                <div className="card group">
+                  <div className="group-row">
+                    <span className="ico ico-amber"><Info size={16} /></span>
+                    <div>В этом месте данных об укрытиях пока нет<small>Предложите место на вкладке «Предложить»: заявки проверяет модератор. Для крупных городов мы подключаем официальные списки.</small></div>
+                  </div>
+                </div>
+              )}
+              {shelters.length > 0 && <div className="stats">
                 <div className="card stat">
                   <span className="ico ico-green"><Building2 size={18} /></span>
                   <b>{official.length.toLocaleString("ru-RU")}</b>
@@ -170,12 +186,14 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
                   <b>{totalCapacity >= 1e6 ? `${(totalCapacity / 1e6).toFixed(2).replace(".", ",")} млн` : totalCapacity.toLocaleString("ru-RU")}</b>
                   <span>заявленная вместимость</span>
                 </div>
-              </div>
+              </div>}
               <div className="card group">
-                <div className="group-row">
-                  <span className="ico ico-gray"><Clock size={16} /></span>
-                  <div>Данные администрации от {updated ? fmtDate(updated) : "—"}<small>Источник и дата указаны в паспорте каждой точки</small></div>
-                </div>
+                {official.length > 0 && (
+                  <div className="group-row">
+                    <span className="ico ico-gray"><Clock size={16} /></span>
+                    <div>Данные администрации от {updated ? fmtDate(updated) : "—"}<small>Источник и дата указаны в паспорте каждой точки</small></div>
+                  </div>
+                )}
                 <div className="group-row">
                   <span className="ico ico-amber"><TriangleAlert size={16} /></span>
                   <div>Справочная информация<small>Не гарантия безопасности и доступности входа. Следуйте оповещениям МЧС.</small></div>
@@ -190,7 +208,7 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
             </>
           )}
 
-          {tab === "list" && (
+          {!searchOpen && tab === "list" && (
             <>
               <div className="large-title"><h2>Список</h2><span className="chip-city"><LayoutGrid size={14} />{visible.total}</span></div>
               <div className="field-input">
@@ -224,11 +242,11 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
             </>
           )}
 
-          {tab === "suggest" && (
+          {!searchOpen && tab === "suggest" && (
             <SuggestForm citySlug={city.slug} draft={draft} setDraft={setDraft} onPickOnMap={() => { setPicking(true); setTab("map"); }} />
           )}
 
-          {tab === "settings" && (
+          {!searchOpen && tab === "settings" && (
             <div className="about">
               <div className="large-title"><h2>Настройки</h2></div>
               <h2 style={{ display: "flex", gap: 8, alignItems: "center" }}><Palette size={16} />Оформление</h2>
@@ -240,6 +258,7 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
                 <p>Мы показываем только места из открытых официальных источников. У каждой точки указан источник и дата данных.</p>
                 <p>Заявки жителей проверяет модератор. Сообщения о входе («открыт / закрыт») не меняют официальный статус и устаревают через {REPORT_TTL_HOURS} ч.</p>
                 <p>Информация не гарантирует безопасность и доступность входа. Следуйте оповещениям МЧС.</p>
+                <p>Каталог населённых пунктов: GeoNames (CC BY 4.0). Карты: © Яндекс, © участники OpenStreetMap, Esri. Маршруты: OSRM.</p>
               </div>
             </div>
           )}
@@ -289,7 +308,7 @@ function Passport({ citySlug, route, routeBusy, routeError, onRoute, onClearRout
     try {
       const r = await fetch("/api/reports", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ city: citySlug, shelterId: s.id, kind }) });
       const j = await r.json().catch(() => ({}));
-      setSent(r.ok ? { ok: true, text: "Спасибо, сообщение принято." } : { ok: false, text: j.error ?? "Не удалось отправить." });
+      setSent(r.ok ? { ok: true, text: "Спасибо, сообщение принято." } : { ok: false, text: `${j.error ?? "Не удалось отправить."}${j.code ? ` (код: ${j.code})` : ""}` });
       if (r.ok) onSent();
     } catch {
       setSent({ ok: false, text: "Нет соединения. Попробуйте позже." });
@@ -298,6 +317,53 @@ function Passport({ citySlug, route, routeBusy, routeError, onRoute, onClearRout
     }
   };
   const warn = summary && summary.problems6h >= WARN_THRESHOLD;
+
+  // фото: одобренные сверху, предложение нового — через сжатие на устройстве
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [draft, setDraft] = useState<{ blob: Blob; url: string } | null>(null);
+  const [agree, setAgree] = useState(false);
+  const [photoMsg, setPhotoMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch(`/api/photos?shelter=${s.id}`).then((r) => r.json()).then((j) => alive && setPhotos((j.photos ?? []).map((p: { id: string }) => p.id))).catch(() => {});
+    return () => { alive = false; };
+  }, [s.id]);
+  useEffect(() => () => { if (draft) URL.revokeObjectURL(draft.url); }, [draft]);
+
+  const pickPhoto = async (file: File | undefined) => {
+    if (!file) return;
+    setPhotoMsg(null);
+    try {
+      const blob = await compressImage(file);
+      setDraft({ blob, url: URL.createObjectURL(blob) });
+      setAgree(false);
+    } catch (e) {
+      setPhotoMsg({ ok: false, text: e instanceof Error ? e.message : "Не удалось обработать фото." });
+    }
+  };
+  const sendPhoto = async () => {
+    if (!draft) return;
+    setPhotoBusy(true);
+    try {
+      const fd = new FormData();
+      fd.set("file", draft.blob, "photo.jpg");
+      fd.set("shelterId", s.id);
+      fd.set("city", citySlug);
+      fd.set("consent", "1");
+      const r = await fetch("/api/photos", { method: "POST", body: fd });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(`${j.error ?? "Не удалось отправить."}${j.code ? ` (код: ${j.code})` : ""}`);
+      setDraft(null);
+      setPhotoMsg({ ok: true, text: "Спасибо! Фото отправлено на проверку и появится после одобрения." });
+    } catch (e) {
+      setPhotoMsg({ ok: false, text: e instanceof Error ? e.message : "Не удалось отправить." });
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
   const { Icon: HeadIcon, cls } = iconFor(s);
 
   const rows: PRow[] = [
@@ -318,6 +384,16 @@ function Passport({ citySlug, route, routeBusy, routeError, onRoute, onClearRout
 
   return (
     <aside className={`passport glass ${hideOnNarrow ? "passport-hide" : ""}`}>
+      {photos.length > 0 && (
+        <div className="gallery">
+          {photos.map((id) => (
+            <a key={id} href={`/api/photos/${id}`} target="_blank" rel="noreferrer">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={`/api/photos/${id}`} alt={`Фото: ${s.address}`} loading="lazy" />
+            </a>
+          ))}
+        </div>
+      )}
       <div className="passport-head">
         <span className={`ico ${cls}`}><HeadIcon size={20} /></span>
         <h2>Паспорт укрытия</h2>
@@ -384,6 +460,24 @@ function Passport({ citySlug, route, routeBusy, routeError, onRoute, onClearRout
           })}
         </div>
         {sent && <p className={sent.ok ? "ok" : "err"}>{sent.text}</p>}
+
+        <input ref={fileRef} type="file" accept="image/*" hidden onChange={(e) => { pickPhoto(e.target.files?.[0]); e.target.value = ""; }} />
+        {!draft && <button className="photo-btn" onClick={() => fileRef.current?.click()}><Camera size={18} />Предложить фото</button>}
+        {draft && (
+          <div className="photo-draft">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={draft.url} alt="Предпросмотр" />
+            <label className="check">
+              <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} />
+              <span>Подтверждаю: снято с общедоступного места, на фото нет людей, лиц, номеров автомобилей, охраны, схем и планов объекта.</span>
+            </label>
+            <div className="route-btns">
+              <button className="btn" disabled={!agree || photoBusy} onClick={sendPhoto}>{photoBusy ? "Отправляем…" : "Отправить на проверку"}</button>
+              <button className="btn btn-ghost-wide" onClick={() => setDraft(null)}>Отмена</button>
+            </div>
+          </div>
+        )}
+        {photoMsg && <p className={photoMsg.ok ? "ok" : "err"}>{photoMsg.text}</p>}
         <p className="note" style={{ marginLeft: 0 }}>Сообщайте только то, что заметили сами. Не подвергайте себя опасности ради проверки.</p>
       </div>
 

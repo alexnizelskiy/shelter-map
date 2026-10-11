@@ -1,15 +1,19 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { loadCities } from "@/lib/cities-server";
+import HomeSearch from "@/components/HomeSearch";
 
 async function Cities() {
   const cities = await loadCities();
   return (
-    <ul>
-      {cities.map((c) => (
-        <li key={c.slug}><Link href={`/${c.slug}`}>{c.name}</Link></li>
-      ))}
-    </ul>
+    <>
+      <h2>Города с данными</h2>
+      <ul>
+        {cities.map((c) => (
+          <li key={c.slug}><Link href={`/${c.slug}`}>{c.name}</Link></li>
+        ))}
+      </ul>
+    </>
   );
 }
 
@@ -17,7 +21,8 @@ export default function Home() {
   return (
     <main className="home">
       <h1>Карта укрытий</h1>
-      <p>Выберите город</p>
+      <p className="note" style={{ margin: "0 0 16px" }}>Найдите свой город, посёлок или село. Мы покажем карту и ближайшие укрытия.</p>
+      <HomeSearch />
       <Suspense fallback={null}>
         <Cities />
       </Suspense>

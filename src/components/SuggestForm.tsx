@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { CheckCircle2, LocateFixed, MapPin, Send } from "lucide-react";
+import GlassSelect from "./GlassSelect";
 import { BASIS_LABEL, SUGGEST_BASIS, SUGGEST_KIND_LABEL, SUGGEST_KINDS, type SuggestBasis, type SuggestKind } from "@/lib/reports";
 
 export type Draft = {
@@ -70,11 +71,10 @@ export default function SuggestForm({ citySlug, draft, setDraft, onPickOnMap }: 
       <div className="large-title"><h2>Предложить место</h2></div>
       <p className="note">Не ходите к объектам специально и не фотографируйте охраняемые помещения. Сообщайте только то, что заметили в обычных обстоятельствах.</p>
 
-      <label>Что это за объект?
-        <select value={draft.kind} onChange={(e) => set("kind", e.target.value as SuggestKind)}>
-          {SUGGEST_KINDS.map((k) => <option key={k} value={k}>{SUGGEST_KIND_LABEL[k]}</option>)}
-        </select>
-      </label>
+      <div className="field">
+        <span>Что это за объект?</span>
+        <GlassSelect label="Тип объекта" value={draft.kind} onChange={(v) => set("kind", v)} options={SUGGEST_KINDS.map((k) => ({ value: k, label: SUGGEST_KIND_LABEL[k] }))} />
+      </div>
 
       <label>Адрес или описание места *
         <input required minLength={5} maxLength={200} value={draft.address} onChange={(e) => set("address", e.target.value)} placeholder="Например: ул. Пушкинская, 10, подвал" />
@@ -89,11 +89,10 @@ export default function SuggestForm({ citySlug, draft, setDraft, onPickOnMap }: 
         <small className="note">{draft.lat != null && draft.lng != null ? `Выбрано: ${draft.lat.toFixed(5)}, ${draft.lng.toFixed(5)}` : "Точка не выбрана"}</small>
       </div>
 
-      <label>На чём основана информация?
-        <select value={draft.basis} onChange={(e) => set("basis", e.target.value as SuggestBasis)}>
-          {SUGGEST_BASIS.map((k) => <option key={k} value={k}>{BASIS_LABEL[k]}</option>)}
-        </select>
-      </label>
+      <div className="field">
+        <span>На чём основана информация?</span>
+        <GlassSelect label="Основание" value={draft.basis} onChange={(v) => set("basis", v)} options={SUGGEST_BASIS.map((k) => ({ value: k, label: BASIS_LABEL[k] }))} />
+      </div>
 
       {draft.basis === "official_link" && (
         <label>Ссылка на источник

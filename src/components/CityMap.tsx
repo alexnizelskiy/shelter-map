@@ -22,18 +22,21 @@ type Props = {
   picked?: { lat: number; lng: number } | null;
   onPick?: (lat: number, lng: number) => void;
   basemap: Basemap;
+  fit?: [number, number, number, number]; // вписать карту в границы (для найденных мест)
   route?: [number, number][] | null; // линия маршрута [lng, lat][]
 };
 
 const SRC = "shelters";
 const KIND_COLOR = ["case", ["==", ["get", "flag"], 1], "#e0a100", ["match", ["get", "kind"], "official_shelter", "#1f9d55", "other_shelter", "#1f9d55", "help_point", "#1b6ef3", "#8b93a1"]];
 
-export default function CityMap({ center, zoom, shelters, selectedId, onSelect, me, flagged, picking, picked, onPick, basemap, route }: Props) {
+export default function CityMap({ center, zoom, shelters, selectedId, onSelect, me, flagged, picking, picked, onPick, basemap, fit, route }: Props) {
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const ready = useRef(false);
   const onSelectRef = useRef(onSelect);
   const sheltersRef = useRef(shelters);
+  const fitKey = fit?.join(",") ?? "";
+  const fitRef = useRef(fit);
   const baseRef = useRef(basemap);
   const themeRef = useRef<() => void>(() => {});
   const flaggedRef = useRef<Set<string>>(new Set());
@@ -46,12 +49,20 @@ export default function CityMap({ center, zoom, shelters, selectedId, onSelect, 
     pickingRef.current = !!picking;
     onPickRef.current = onPick;
     baseRef.current = basemap;
-  }, [onSelect, shelters, flagged, picking, onPick, basemap]);
+    fitRef.current = fit;
+  }, [onSelect, shelters, flagged, picking, onPick, basemap, fit]);
 
   // инициализация карты, источника и слоёв
   useEffect(() => {
     if (!el.current) return;
-    const m = new maplibregl.Map({ container: el.current, style: emptyStyle, center, zoom });
+    const narrow = window.innerWidth <= 760;
+    const m = new maplibregl.Map({
+      container: el.current,
+      style: emptyStyle,
+      ...(fitKey
+        ? { bounds: [[fitRef.current![0], fitRef.current![1]], [fitRef.current![2], fitRef.current![3]]] as [[number, number], [number, number]], fitBoundsOptions: { padding: { top: 30, bottom: narrow ? 110 : 30, left: narrow ? 20 : 430, right: 70 }, maxZoom: 16 } }
+        : { center, zoom }),
+    });
     map.current = m;
     const clusterMarkers = new Map<number, maplibregl.Marker>();
 
@@ -113,7 +124,7 @@ export default function CityMap({ center, zoom, shelters, selectedId, onSelect, 
       ready.current = true;
     });
     return () => { ready.current = false; themeObserver.disconnect(); clusterMarkers.clear(); m.remove(); };
-  }, [center, zoom]);
+  }, [center, zoom, fitKey]);
 
   // переключение подложки на лету
   useEffect(() => {

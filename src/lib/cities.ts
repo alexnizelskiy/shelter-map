@@ -4,6 +4,8 @@ export type City = {
   center: [number, number]; // [lng, lat]
   zoom: number;
   bbox: [number, number, number, number]; // [minLng, minLat, maxLng, maxLat] — допустимая область для предложений
+  fit?: [number, number, number, number]; // границы, в которые вписывается карта при открытии (для найденных мест)
+  place?: { id: number; region: string }; // виртуальный город из каталога населённых пунктов
 };
 
 export const CITIES: City[] = [

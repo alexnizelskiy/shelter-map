@@ -137,3 +137,18 @@ export async function deleteShelter(form: FormData) {
   if (Number.isFinite(id)) await sql()`DELETE FROM published_shelters WHERE id = ${id}`;
   revalidatePath("/admin");
 }
+
+export async function approvePhoto(form: FormData) {
+  await guard();
+  const id = Number(form.get("id"));
+  if (Number.isFinite(id)) await sql()`UPDATE shelter_photos SET state = 'approved', reviewed_at = now() WHERE id = ${id}`;
+  revalidatePath("/admin");
+}
+
+export async function rejectPhoto(form: FormData) {
+  await guard();
+  const id = Number(form.get("id"));
+  // отклонённое фото не храним: освобождаем место
+  if (Number.isFinite(id)) await sql()`UPDATE shelter_photos SET state = 'rejected', data = NULL, reviewed_at = now() WHERE id = ${id}`;
+  revalidatePath("/admin");
+}

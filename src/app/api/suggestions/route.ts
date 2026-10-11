@@ -1,4 +1,4 @@
-import { loadCity } from "@/lib/cities-server";
+import { loadAnyCity } from "@/lib/cities-server";
 import { SUGGEST_BASIS, SUGGEST_KINDS, type SuggestBasis, type SuggestKind } from "@/lib/reports";
 import { dbConfigured, ensureSchema, sql, SUGGEST_LIMIT_SQL } from "@/lib/db";
 import { ipHash, json, readJson, clean } from "@/lib/api-utils";
@@ -8,7 +8,7 @@ export async function POST(req: Request) {
   if (!b) return json({ error: "Некорректный запрос" }, 400);
   if (clean(b.website, 50)) return json({ ok: true }); // ловушка для ботов: тихо «принимаем»
 
-  const city = await loadCity(clean(b.city, 60));
+  const city = await loadAnyCity(clean(b.city, 60));
   if (!city) return json({ error: "Город не найден" }, 404);
   const kind = clean(b.kind, 30) as SuggestKind;
   const basis = clean(b.basis, 30) as SuggestBasis;
@@ -39,6 +39,6 @@ export async function POST(req: Request) {
     return json({ ok: true });
   } catch (e) {
     console.error("suggestions POST", e);
-    return json({ error: "Не удалось сохранить. Попробуйте позже." }, 500);
+    return json({ error: "Не удалось сохранить. Попробуйте позже.", code: (e as { code?: string }).code ?? "unknown" }, 500);
   }
 }

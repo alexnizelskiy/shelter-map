@@ -82,6 +82,22 @@ CREATE TABLE IF NOT EXISTS shelter_overrides (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Фото укрытий от жителей: хранятся в базе (сжатые на устройстве), показываются только после проверки модератором.
+CREATE TABLE IF NOT EXISTS shelter_photos (
+  id          BIGSERIAL PRIMARY KEY,
+  city_slug   TEXT NOT NULL,
+  shelter_id  TEXT NOT NULL,
+  mime        TEXT NOT NULL,
+  size        INT NOT NULL,
+  data        BYTEA,
+  state       TEXT NOT NULL DEFAULT 'new' CHECK (state IN ('new','approved','rejected')),
+  ip_hash     TEXT NOT NULL,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  reviewed_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS shelter_photos_idx ON shelter_photos (shelter_id, state);
+CREATE INDEX IF NOT EXISTS shelter_photos_ip_idx ON shelter_photos (ip_hash, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS admin_attempts (
   id         BIGSERIAL PRIMARY KEY,
   ip_hash    TEXT NOT NULL,

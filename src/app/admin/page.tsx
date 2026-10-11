@@ -7,7 +7,7 @@ import { loadShelters } from "@/lib/shelters-server";
 import { loadCities } from "@/lib/cities-server";
 import { distanceKm, fmtDate, type Shelter } from "@/lib/shelters";
 import { BASIS_LABEL, REPORT_LABEL, SUGGEST_KIND_LABEL, type SuggestBasis, type SuggestKind } from "@/lib/reports";
-import { approveSuggestion, clearReports, logout, setHidden, setSuggestionState } from "./actions";
+import { approvePhoto, rejectPhoto, approveSuggestion, clearReports, logout, setHidden, setSuggestionState } from "./actions";
 import LoginForm from "./LoginForm";
 import Cities from "./Cities";
 
@@ -25,7 +25,7 @@ export default function AdminPage({ searchParams }: { searchParams: SP }) {
   );
 }
 
-const TABS = [["new", "Заявки"], ["need_info", "Уточнение"], ["problems", "Жалобы"], ["hidden", "Скрытые"], ["done", "Обработанные"], ["cities", "Города и точки"]] as const;
+const TABS = [["new", "Заявки"], ["need_info", "Уточнение"], ["problems", "Жалобы"], ["hidden", "Скрытые"], ["photos", "Фото"], ["done", "Обработанные"], ["cities", "Города и точки"]] as const;
 
 async function Content({ searchParams }: { searchParams: SP }) {
   await connection();
@@ -39,11 +39,12 @@ async function Content({ searchParams }: { searchParams: SP }) {
   const all = (await Promise.all(cityList.map((c) => loadShelters(c.slug, { includeHidden: true })))).flat();
   const byId = new Map(all.map((s) => [s.id, s]));
 
-  const [cnt] = await sql()<{ n: number; ni: number; p: number }[]>`
+  const [cnt] = await sql()<{ n: number; ni: number; p: number; ph: number }[]>`
     SELECT (SELECT count(*) FROM suggestions WHERE state='new')::int AS n,
            (SELECT count(*) FROM suggestions WHERE state='need_info')::int AS ni,
-           (SELECT count(DISTINCT shelter_id) FROM shelter_reports WHERE created_at > now() - interval '7 days' AND kind IN ('closed','not_found','wrong_info'))::int AS p`;
-  const badge: Record<string, number> = { new: cnt.n, need_info: cnt.ni, problems: cnt.p };
+           (SELECT count(DISTINCT shelter_id) FROM shelter_reports WHERE created_at > now() - interval '7 days' AND kind IN ('closed','not_found','wrong_info'))::int AS p,
+           (SELECT count(*) FROM shelter_photos WHERE state='new')::int AS ph`;
+  const badge: Record<string, number> = { new: cnt.n, need_info: cnt.ni, problems: cnt.p, photos: cnt.ph };
 
   return (
     <>
@@ -58,7 +59,7 @@ async function Content({ searchParams }: { searchParams: SP }) {
           </a>
         ))}
       </nav>
-      {tab === "cities" ? <Cities /> : tab === "problems" ? <Problems byId={byId} /> : tab === "hidden" ? <Hidden byId={byId} /> : <Suggestions state={tab} all={all} />}
+      {tab === "photos" ? <Photos byId={byId} /> : tab === "cities" ? <Cities /> : tab === "problems" ? <Problems byId={byId} /> : tab === "hidden" ? <Hidden byId={byId} /> : <Suggestions state={tab} all={all} />}
     </>
   );
 }
@@ -172,6 +173,30 @@ async function Hidden({ byId }: { byId: Map<string, Shelter> }) {
             <div className="adm-title"><strong>{s ? s.address : r.shelter_id}</strong>{s?.holder && <span className="chip">{s.holder}</span>}</div>
             <p className="note">Скрыта {fmtDate(new Date(r.updated_at).toISOString().slice(0, 10))}</p>
             <form action={setHidden}><input type="hidden" name="shelterId" value={r.shelter_id} /><input type="hidden" name="hidden" value="0" /><button className="btn-plain">Показать снова</button></form>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+async function Photos({ byId }: { byId: Map<string, Shelter> }) {
+  const rows = await sql()<{ id: string; shelter_id: string; city_slug: string; size: number; created_at: string }[]>`SELECT id::text, shelter_id, city_slug, size, created_at FROM shelter_photos WHERE state = 'new' ORDER BY id ASC LIMIT 50`;
+  if (!rows.length) return <p className="note">Новых фото нет.</p>;
+  return (
+    <ul className="adm-list">
+      {rows.map((r) => {
+        const s = byId.get(r.shelter_id);
+        return (
+          <li key={r.id} className="adm-card">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={`/api/photos/${r.id}`} alt="Фото на проверку" className="adm-photo" />
+            <div className="adm-title"><strong>{s ? s.address : r.shelter_id}</strong><span className="chip">/{r.city_slug}</span><span className="chip">{Math.round(r.size / 1024)} КБ</span></div>
+            <p className="note">Проверьте: нет людей, лиц, номеров автомобилей, охраняемых помещений, схем и планов. {new Date(r.created_at).toLocaleString("ru-RU")}</p>
+            <div className="adm-inline">
+              <form action={approvePhoto}><input type="hidden" name="id" value={r.id} /><button className="primary" style={{ width: "auto", padding: "10px 18px" }}>Показать в паспорте</button></form>
+              <form action={rejectPhoto}><input type="hidden" name="id" value={r.id} /><button className="btn-plain btn-danger">Отклонить и удалить</button></form>
+            </div>
           </li>
         );
       })}

@@ -1,4 +1,4 @@
-import { loadCity } from "@/lib/cities-server";
+import { loadAnyCity } from "@/lib/cities-server";
 import { loadShelters } from "@/lib/shelters-server";
 import { REPORT_KINDS, REPORT_TTL_HOURS, WARN_WINDOW_HOURS, type ReportKind, type ReportSummary } from "@/lib/reports";
 import { dbConfigured, ensureSchema, sql, SUMMARY_SQL, REPORT_LIMIT_SQL } from "@/lib/db";
@@ -6,7 +6,7 @@ import { ipHash, json, readJson, clean } from "@/lib/api-utils";
 
 // Сводка сообщений жителей по городу. Без БД возвращаем пустой список, чтобы карта работала.
 export async function GET(req: Request) {
-  const city = await loadCity(new URL(req.url).searchParams.get("city") ?? "");
+  const city = await loadAnyCity(new URL(req.url).searchParams.get("city") ?? "");
   if (!city) return json({ error: "Город не найден" }, 404);
   if (!dbConfigured()) return json({ reports: [], enabled: false });
   try {
@@ -40,6 +40,6 @@ export async function POST(req: Request) {
     return json({ ok: true });
   } catch (e) {
     console.error("reports POST", e);
-    return json({ error: "Не удалось сохранить. Попробуйте позже." }, 500);
+    return json({ error: "Не удалось сохранить. Попробуйте позже.", code: (e as { code?: string }).code ?? "unknown" }, 500);
   }
 }
