@@ -10,6 +10,7 @@ import { BASIS_LABEL, REPORT_LABEL, SUGGEST_KIND_LABEL, type SuggestBasis, type 
 import { approvePhoto, rejectPhoto, approveSuggestion, clearReports, logout, setHidden, setSuggestionState } from "./actions";
 import LoginForm from "./LoginForm";
 import Cities from "./Cities";
+import Chat from "./Chat";
 
 export const metadata: Metadata = { title: "Модерация", robots: { index: false, follow: false } };
 
@@ -25,7 +26,7 @@ export default function AdminPage({ searchParams }: { searchParams: SP }) {
   );
 }
 
-const TABS = [["new", "Заявки"], ["need_info", "Уточнение"], ["problems", "Жалобы"], ["hidden", "Скрытые"], ["photos", "Фото"], ["done", "Обработанные"], ["cities", "Города и точки"]] as const;
+const TABS = [["new", "Заявки"], ["need_info", "Уточнение"], ["problems", "Жалобы"], ["hidden", "Скрытые"], ["photos", "Фото"], ["chat", "Чат"], ["done", "Обработанные"], ["cities", "Города и точки"]] as const;
 
 async function Content({ searchParams }: { searchParams: SP }) {
   await connection();
@@ -59,7 +60,7 @@ async function Content({ searchParams }: { searchParams: SP }) {
           </a>
         ))}
       </nav>
-      {tab === "photos" ? <Photos byId={byId} /> : tab === "cities" ? <Cities /> : tab === "problems" ? <Problems byId={byId} /> : tab === "hidden" ? <Hidden byId={byId} /> : <Suggestions state={tab} all={all} />}
+      {tab === "chat" ? <Chat /> : tab === "photos" ? <Photos byId={byId} /> : tab === "cities" ? <Cities /> : tab === "problems" ? <Problems byId={byId} /> : tab === "hidden" ? <Hidden byId={byId} /> : <Suggestions state={tab} all={all} />}
     </>
   );
 }

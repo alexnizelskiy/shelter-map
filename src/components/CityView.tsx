@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import {
   Building2, CalendarDays, ChevronRight, CircleAlert, DoorClosed, DoorOpen, Heart, Layers, LayoutGrid, Link2, List, LocateFixed,
   Map as MapIcon, MapPin, MapPinPlus, Minus, Navigation, Palette, Plus, Route, Search, SearchX, Settings, ShieldCheck, TriangleAlert,
-  Users, X, Clock, Info, ChevronDown, Car, Camera, Volume2, VolumeX, ArrowUp, ArrowUpLeft, ArrowUpRight, CornerUpLeft, CornerUpRight, Undo2, RotateCw, Flag, Footprints, ListOrdered, type LucideIcon,
+  Users, X, Clock, Info, ChevronDown, Car, Camera, MessageCircle, Volume2, VolumeX, ArrowUp, ArrowUpLeft, ArrowUpRight, CornerUpLeft, CornerUpRight, Undo2, RotateCw, Flag, Footprints, ListOrdered, type LucideIcon,
 } from "lucide-react";
 import { compressImage } from "@/lib/image";
 import { KIND_LABEL, distanceKm, fmtDate, type Shelter } from "@/lib/shelters";
@@ -16,6 +16,7 @@ import ThemeSwitch from "./ThemeSwitch";
 import CitySearch from "./CitySearch";
 import LocationPrompt from "./LocationPrompt";
 import Checklist from "./Checklist";
+import ChatPanel from "./ChatPanel";
 import { useNavigation, type NavState, type Variant } from "@/lib/useNavigation";
 import { formatClock, roundDist, type LngLat, type NavStep } from "@/lib/nav";
 import BasemapSwitch, { useBasemapId } from "./BasemapSwitch";
@@ -23,14 +24,15 @@ import { getBasemap } from "@/lib/basemaps";
 
 const CityMap = dynamic(() => import("./CityMap"), { ssr: false });
 
-type Tab = "map" | "list" | "suggest" | "settings";
+type Tab = "map" | "list" | "chat" | "suggest" | "settings";
 const LIST_LIMIT = 100;
 const isNarrow = () => typeof window !== "undefined" && window.matchMedia("(max-width: 760px)").matches;
 
 const TABS: { key: Tab; label: string; Icon: LucideIcon }[] = [
   { key: "map", label: "Карта", Icon: MapIcon },
   { key: "list", label: "Список", Icon: List },
-  { key: "suggest", label: "Предложить", Icon: MapPinPlus },
+  { key: "chat", label: "Чат", Icon: MessageCircle },
+  { key: "suggest", label: "Добавить", Icon: MapPinPlus },
   { key: "settings", label: "Настройки", Icon: Settings },
 ];
 
@@ -84,6 +86,13 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
   const [voice, setVoice] = useState(false);
   const [routeBusy, setRouteBusy] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
+
+  // после входа через внешний сервис открываем чат (?chat=1)
+  useEffect(() => {
+    if (!window.location.search.includes("chat=1")) return;
+    const t = setTimeout(() => setTab("chat"), 0);
+    return () => clearTimeout(t);
+  }, []);
 
   const loadReports = useCallback(() => {
     fetch(`/api/reports?city=${city.slug}`)
@@ -211,7 +220,7 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
                 <div className="card group">
                   <div className="group-row">
                     <span className="ico ico-amber"><Info size={16} /></span>
-                    <div>В этом месте данных об укрытиях пока нет<small>Предложите место на вкладке «Предложить»: заявки проверяет модератор. Для крупных городов мы подключаем официальные списки.</small></div>
+                    <div>В этом месте данных об укрытиях пока нет<small>Предложите место на вкладке «Добавить»: заявки проверяет модератор. Для крупных городов мы подключаем официальные списки.</small></div>
                   </div>
                 </div>
               )}
@@ -280,6 +289,10 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
                 })}
               </ul>
             </>
+          )}
+
+          {!searchOpen && tab === "chat" && (
+            <ChatPanel room={city.slug} cityName={city.name} returnPath={`/${city.slug}`} onPickCity={() => setSearchOpen(true)} />
           )}
 
           {!searchOpen && tab === "suggest" && (

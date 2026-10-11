@@ -101,6 +101,47 @@ CREATE TABLE IF NOT EXISTS shelter_photos (
 CREATE INDEX IF NOT EXISTS shelter_photos_idx ON shelter_photos (shelter_id, state);
 CREATE INDEX IF NOT EXISTS shelter_photos_ip_idx ON shelter_photos (ip_hash, created_at DESC);
 
+-- ───── Чат ─────
+-- Фамилия не хранится: только первая буква. Имя и аватар берутся из выбранного сервиса входа.
+CREATE TABLE IF NOT EXISTS chat_users (
+  id           BIGSERIAL PRIMARY KEY,
+  provider     TEXT NOT NULL,
+  ext_id       TEXT NOT NULL,
+  first_name   TEXT NOT NULL,
+  last_initial TEXT NOT NULL DEFAULT '',
+  avatar_url   TEXT,
+  role         TEXT NOT NULL DEFAULT 'user',
+  banned_until TIMESTAMPTZ,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_seen    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (provider, ext_id)
+);
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id         BIGSERIAL PRIMARY KEY,
+  room       TEXT NOT NULL,
+  user_id    BIGINT NOT NULL REFERENCES chat_users(id) ON DELETE CASCADE,
+  text       TEXT NOT NULL,
+  reply_to   BIGINT,
+  deleted    BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS chat_messages_room_idx ON chat_messages (room, id DESC);
+CREATE TABLE IF NOT EXISTS chat_reactions (
+  message_id BIGINT NOT NULL REFERENCES chat_messages(id) ON DELETE CASCADE,
+  user_id    BIGINT NOT NULL REFERENCES chat_users(id) ON DELETE CASCADE,
+  emoji      TEXT NOT NULL,
+  PRIMARY KEY (message_id, user_id, emoji)
+);
+CREATE TABLE IF NOT EXISTS chat_reports (
+  id         BIGSERIAL PRIMARY KEY,
+  message_id BIGINT NOT NULL REFERENCES chat_messages(id) ON DELETE CASCADE,
+  user_id    BIGINT NOT NULL REFERENCES chat_users(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (message_id, user_id)
+);
+CREATE TABLE IF NOT EXISTS chat_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS chat_presence (visitor TEXT PRIMARY KEY, seen TIMESTAMPTZ NOT NULL DEFAULT now());
+
 CREATE TABLE IF NOT EXISTS admin_attempts (
   id         BIGSERIAL PRIMARY KEY,
   ip_hash    TEXT NOT NULL,

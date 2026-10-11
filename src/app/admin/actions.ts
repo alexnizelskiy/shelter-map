@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { COOKIE, checkPassword, isAdmin, makeToken } from "@/lib/admin-auth";
 import { ensureSchema, sql } from "@/lib/db";
+import { CLEAR_OPTIONS, setSetting } from "@/lib/chat-db";
 import { clean } from "@/lib/api-utils";
 import { createHash } from "node:crypto";
 import { CITIES } from "@/lib/cities";
@@ -150,5 +151,57 @@ export async function rejectPhoto(form: FormData) {
   const id = Number(form.get("id"));
   // отклонённое фото не храним: освобождаем место
   if (Number.isFinite(id)) await sql()`UPDATE shelter_photos SET state = 'rejected', data = NULL, reviewed_at = now() WHERE id = ${id}`;
+  revalidatePath("/admin");
+}
+
+// ───── чат ─────
+export async function saveChatSettings(form: FormData) {
+  await guard();
+  const hours = Number(form.get("clear_hours"));
+  if (CLEAR_OPTIONS.some((o) => o.hours === hours)) {
+    await setSetting("clear_hours", String(hours));
+    await setSetting("last_clear_at", String(Date.now())); // новое расписание отсчитывается с этого момента
+  }
+  await setSetting("enabled", form.get("enabled") === "1" ? "1" : "0");
+  revalidatePath("/admin");
+}
+
+export async function clearChatNow() {
+  await guard();
+  await sql()`DELETE FROM chat_messages`;
+  await setSetting("last_clear_at", String(Date.now()));
+  revalidatePath("/admin");
+}
+
+export async function deleteChatMessage(form: FormData) {
+  await guard();
+  const id = Number(form.get("id"));
+  if (Number.isFinite(id)) await sql()`UPDATE chat_messages SET deleted = true WHERE id = ${id}`;
+  revalidatePath("/admin");
+}
+
+export async function banChatUser(form: FormData) {
+  await guard();
+  const id = Number(form.get("userId"));
+  const hours = Number(form.get("hours"));
+  if (!Number.isFinite(id)) return;
+  // hours = 0 — навсегда (100 лет)
+  const until = new Date(Date.now() + (hours > 0 ? hours * 3600_000 : 100 * 365 * 86400_000));
+  await sql()`UPDATE chat_users SET banned_until = ${until} WHERE id = ${id}`;
+  await sql()`UPDATE chat_messages SET deleted = true WHERE user_id = ${id} AND created_at > now() - interval '1 day'`;
+  revalidatePath("/admin");
+}
+
+export async function unbanChatUser(form: FormData) {
+  await guard();
+  const id = Number(form.get("userId"));
+  if (Number.isFinite(id)) await sql()`UPDATE chat_users SET banned_until = NULL WHERE id = ${id}`;
+  revalidatePath("/admin");
+}
+
+export async function dismissChatReports(form: FormData) {
+  await guard();
+  const id = Number(form.get("id"));
+  if (Number.isFinite(id)) await sql()`DELETE FROM chat_reports WHERE message_id = ${id}`;
   revalidatePath("/admin");
 }
