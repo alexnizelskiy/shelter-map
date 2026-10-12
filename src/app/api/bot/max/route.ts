@@ -4,6 +4,7 @@ import { handleMaxUpdate, type MaxUpdate } from "@/lib/max-bot";
 import { maxAnswer, maxChannelLink, maxGateEnabled, maxIsSubscribed, maxSend, maxUrgentEnabled, maxWebhookSecret } from "@/lib/max";
 import { markBlocked, trackSafe } from "@/lib/bot-users";
 import { siteOrigin } from "@/lib/chat-auth";
+import { forgetMaxChat, rememberMaxChat } from "@/lib/max-chats";
 
 const same = (a: string, b: string) => timingSafeEqual(createHash("sha256").update(a).digest(), createHash("sha256").update(b).digest());
 
@@ -15,6 +16,14 @@ export async function POST(req: Request) {
 
   let update: MaxUpdate;
   try { update = (await req.json()) as MaxUpdate; } catch { return json({ ok: true }); }
+
+  // каналы и чаты, где состоит бот: их id нужен для MAX_CHANNEL_ID, а получить его можно только из событий
+  try {
+    const rec = update.message?.recipient;
+    if (update.update_type === "bot_added" && update.chat_id != null) await rememberMaxChat(update.chat_id, update.is_channel ? "channel" : "chat");
+    else if (update.update_type === "bot_removed" && update.chat_id != null) await forgetMaxChat(update.chat_id);
+    else if (update.update_type === "message_created" && rec?.chat_id != null && rec.chat_type && rec.chat_type !== "dialog") await rememberMaxChat(rec.chat_id, rec.chat_type);
+  } catch (e) { console.error("max chats", e); }
 
   try {
     await handleMaxUpdate(update, {

@@ -8,6 +8,7 @@ type MaxUser = { user_id?: number | string; id?: number | string; first_name?: s
 export type MaxUpdate = {
   update_type?: string;
   chat_id?: number | string;
+  is_channel?: boolean;
   user?: MaxUser;
   payload?: string;
   user_locale?: string;

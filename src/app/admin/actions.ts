@@ -293,17 +293,15 @@ export async function setupMaxBot() {
   try {
     const secret = maxWebhookSecret();
     if (!/^[A-Za-z0-9-]{5,256}$/.test(secret)) throw new Error("MAX_WEBHOOK_SECRET: 5–256 символов, только латиница, цифры и дефис");
-    await maxApi("POST", "/subscriptions", { body: { url: `${origin}/api/bot/max`, update_types: ["bot_started", "message_created", "message_callback", "bot_stopped", "dialog_removed"], secret } });
-    await maxApi("PATCH", "/me", { body: {
-      description: "Опора — карта укрытий. Показывает ближайшее укрытие, строит маршрут, работает без сети в режиме «Тревога». Информация справочная: следуйте оповещениям МЧС.",
-      commands: [
-        { name: "start", description: "Открыть карту" },
-        { name: "alarm", description: "Режим «Тревога»" },
-        { name: "stop", description: "Не присылать сообщения" },
-        { name: "notify", description: "Снова присылать сообщения" },
-        { name: "help", description: "Помощь" },
-      ],
-    } });
+    await maxApi("POST", "/subscriptions", { body: { url: `${origin}/api/bot/max`, update_types: ["bot_started", "message_created", "message_callback", "bot_stopped", "dialog_removed", "bot_added", "bot_removed"], secret } });
+    // команды бота; описание и имя через API не меняются, их задают в кабинете MAX
+    await maxApi("PATCH", "/me/commands", { body: { commands: [
+      { name: "start", description: "Открыть карту" },
+      { name: "alarm", description: "Режим «Тревога»" },
+      { name: "stop", description: "Не присылать сообщения" },
+      { name: "notify", description: "Снова присылать сообщения" },
+      { name: "help", description: "Помощь" },
+    ] } });
   } catch (e) {
     result = `err ${e instanceof Error ? e.message : String(e)}`.slice(0, 200);
   }

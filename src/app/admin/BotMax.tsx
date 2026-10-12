@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { siteOrigin } from "@/lib/chat-auth";
 import { maxApi, maxChannelId, maxChannelLink, maxGateEnabled, maxToken, maxUsername, maxWebhookSecret } from "@/lib/max";
+import { listMaxChats } from "@/lib/max-chats";
 import { removeMaxWebhook, setupMaxBot } from "./actions";
 
 type Row = { label: string; ok: boolean | null; text: string };
@@ -18,13 +19,17 @@ export default async function BotMax() {
   rows.push(/^[A-Za-z0-9-]{5,256}$/.test(maxWebhookSecret()) ? ok("Секрет вебхука", "задан (MAX_WEBHOOK_SECRET)") : bad("Секрет вебхука", "не задан или неверный: MAX_WEBHOOK_SECRET, 5–256 символов, только латиница, цифры и дефис"));
   rows.push(maxGateEnabled() ? ok("Канал для подписки", `${maxChannelId()}${maxChannelLink() ? ` · ${maxChannelLink()}` : " · ссылка не задана (MAX_CHANNEL_LINK)"}`) : { label: "Канал для подписки", ok: null, text: "не задан: проверка подписки выключена, карта открывается всем (MAX_CHANNEL_ID — числовой id канала)" });
 
-  let chats: { chat_id: number | string; title?: string; type?: string }[] = [];
+  // MAX не отдаёт список каналов: берём id из событий вебхука (бота добавили, в канале появилось сообщение) и спрашиваем у MAX название каждого
+  const seen = await listMaxChats().catch(() => []);
+  const chats = await Promise.all(seen.slice(0, 10).map(async (c) => {
+    try { const info = await maxApi<{ title?: string; link?: string }>("GET", `/chats/${c.id}`); return { ...c, title: info.title, link: info.link }; }
+    catch { return { ...c, title: undefined as string | undefined, link: undefined as string | undefined }; }
+  }));
   if (maxToken()) {
     // запросы идут одновременно: если MAX недоступен, страница ждёт один таймаут, а не четыре подряд
-    const [me, subs, ch, chan] = await Promise.allSettled([
+    const [me, subs, chan] = await Promise.allSettled([
       maxApi<{ name?: string; username?: string; user_id?: number }>("GET", "/me"),
       maxApi<{ subscriptions?: { url?: string }[] }>("GET", "/subscriptions"),
-      maxApi<{ chats?: { chat_id: number | string; title?: string; type?: string }[] }>("GET", "/chats", { query: { count: 50 } }),
       maxGateEnabled() ? maxApi("GET", `/chats/${maxChannelId()}`) : Promise.resolve(null),
     ]);
     if (me.status === "fulfilled") rows.push(ok("Связь с MAX", `бот «${me.value.name ?? me.value.username ?? me.value.user_id}» отвечает`));
@@ -35,7 +40,6 @@ export default async function BotMax() {
       else if (!list.some((s) => s.url === expected)) rows.push(bad("Вебхук", `смотрит на другой адрес: ${list.map((s) => s.url).join(", ")}`));
       else rows.push(ok("Вебхук", "установлен"));
     } else rows.push(bad("Вебхук", `GET /subscriptions: ${msg(subs.reason)}`));
-    if (ch.status === "fulfilled") chats = ch.value.chats ?? []; // список чатов нужен только как подсказка
     if (maxGateEnabled()) rows.push(chan.status === "fulfilled" ? ok("Канал найден", maxChannelId()) : bad("Канал найден", `GET /chats/${maxChannelId()}: ${msg(chan.reason)}`));
   }
 
@@ -53,17 +57,23 @@ export default async function BotMax() {
 
       <h2 className="adm-section">Настройка MAX</h2>
       <div className="adm-card adm-form">
-        <p className="note" style={{ margin: 0 }}>Кнопка ниже подписывает бота на события (запуск, сообщения, нажатия кнопок, блокировка) по адресу <b>{expected}</b> и ставит команды и описание. Адрес мини-приложения, который нужно указать в настройках бота на платформе MAX (Чат-боты → Настройки бота): <b>{origin}/max</b>.</p>
+        <p className="note" style={{ margin: 0 }}>Кнопка ниже подписывает бота на события (запуск, сообщения, нажатия кнопок, блокировка) по адресу <b>{expected}</b> и ставит команды. Название и описание бота задаются в кабинете MAX. Адрес мини-приложения, который нужно указать в настройках бота на платформе MAX (Чат-боты → Настройки бота): <b>{origin}/max</b>.</p>
         <form action={setupMaxBot}><button className="primary">Установить бота MAX</button></form>
         <form action={removeMaxWebhook}><button className="btn-plain btn-danger">Снять вебхук (выключить бота)</button></form>
       </div>
-      {chats.length > 0 && (
+      {maxToken() && (
         <>
-          <h2 className="adm-section">Чаты и каналы бота в MAX</h2>
-          <p className="note">Бот должен быть администратором канала. Числовой id нужного канала скопируйте в переменную MAX_CHANNEL_ID.</p>
-          <ul className="adm-list">
-            {chats.map((c) => <li key={String(c.chat_id)} className="adm-card" style={{ gap: 2 }}><div className="adm-title"><strong>{c.title ?? "без названия"}</strong><span className="chip">{c.type ?? "chat"}</span></div><p className="note" style={{ margin: 0 }}>id: {String(c.chat_id)}</p></li>)}
-          </ul>
+          <h2 className="adm-section">Каналы и чаты бота в MAX</h2>
+          {chats.length > 0 ? (
+            <>
+              <p className="note">Бот должен быть администратором канала. Числовой id нужного канала скопируйте в MAX_CHANNEL_ID, а ссылку на него в MAX_CHANNEL_LINK.</p>
+              <ul className="adm-list">
+                {chats.map((c) => <li key={c.id} className="adm-card" style={{ gap: 2 }}><div className="adm-title"><strong>{c.title ?? "без названия"}</strong><span className="chip">{c.type === "channel" ? "канал" : c.type}</span></div><p className="note" style={{ margin: 0 }}>id: <b>{c.id}</b>{c.link ? ` · ${c.link}` : ""}</p></li>)}
+              </ul>
+            </>
+          ) : (
+            <p className="note">MAX не отдаёт список каналов, id приходит только в событиях. Бот пока ничего не получил. Что сделать: 1) нажмите «Установить бота MAX» (бот подпишется на события добавления); 2) добавьте бота администратором в канал; 3) опубликуйте в канале любое сообщение. После этого обновите страницу: канал появится здесь вместе с числовым id.</p>
+          )}
         </>
       )}
     </>
