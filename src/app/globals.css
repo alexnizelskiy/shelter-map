@@ -517,3 +517,17 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .gate-card h1 { margin: 0; font-size: calc(22px * var(--fs, 1)); }
 .gate-card .btn { border: 0; cursor: pointer; font-family: inherit; text-decoration: none; }
 .gate-card .ico { width: 42px; height: 42px; }
+
+/* ───────── Телефон: разделы меню почти на весь экран ───────── */
+.sheet-head { display: none; }
+@media (max-width: 760px) {
+  .side[data-sheet] { top: max(10px, env(safe-area-inset-top)); max-height: none; }
+  .panel[data-sheet] { flex: 1; max-height: none; padding-top: 0; }
+  .panel[data-sheet][data-tab="chat"] { height: auto; max-height: none; }
+  .sheet-head { display: flex; flex: none; position: sticky; top: 0; z-index: 3; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 2px 10px; margin-bottom: 6px; border-radius: 22px; background: transparent; -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
+  .sheet-head h2 { margin: 0; font-size: calc(24px * var(--fs, 1)); font-weight: 700; }
+  .sheet-head .icon-btn.big { width: 40px; height: 40px; }
+  .panel[data-tab="list"][data-sheet] .large-title, .panel[data-tab="settings"][data-sheet] .large-title { display: none; }
+  .panel[data-search] .cs-bar .icon-btn.big { display: none; }
+  .app[data-sheet] .controls, .app[data-sheet] .loc-prompt, .app[data-sheet] .offline-pill { display: none; }
+}

@@ -113,6 +113,7 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
   const basemap = getBasemap(bmId);
   const [layersOpen, setLayersOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const sheetOpen = searchOpen || tab !== "map"; // на телефоне такие разделы открываются почти на весь экран
   const [route, setRoute] = useState<RouteInfo | null>(null);
   const [variantIdx, setVariantIdx] = useState(0);
   const [navActive, setNavActive] = useState(false);
@@ -256,7 +257,7 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
   const zoom = (d: number) => window.dispatchEvent(new CustomEvent("map-zoom", { detail: d }));
 
   return (
-    <div className={navActive ? "app navigating" : "app"}>
+    <div className={navActive ? "app navigating" : "app"} data-sheet={sheetOpen || undefined}>
       <CityMap
         center={city.center} zoom={city.zoom} shelters={shelters} selectedId={selected} onSelect={pick} me={me} flagged={flagged}
         picking={picking} picked={draft.lat != null && draft.lng != null ? { lat: draft.lat, lng: draft.lng } : null} onPick={onMapPick}
@@ -278,8 +279,14 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
 
       <LocationPrompt current={city.slug} onChooseOther={() => setSearchOpen(true)} />
 
-      <aside className="side">
-        <section className="panel glass" data-tab={tab} data-search={searchOpen || undefined}>
+      <aside className="side" data-sheet={sheetOpen || undefined}>
+        <section className="panel glass" data-tab={tab} data-search={searchOpen || undefined} data-sheet={sheetOpen || undefined}>
+          {sheetOpen && (
+            <div className="sheet-head">
+              <h2>{searchOpen ? "Выбор города" : TABS.find((t) => t.key === tab)?.label}</h2>
+              <button className="icon-btn big" aria-label="Закрыть" onClick={() => { if (searchOpen) setSearchOpen(false); else setTab("map"); }}><X size={20} /></button>
+            </div>
+          )}
           {searchOpen && <CitySearch current={city.slug} onClose={() => setSearchOpen(false)} />}
 
           {!searchOpen && tab === "map" && (
