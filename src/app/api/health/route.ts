@@ -3,14 +3,17 @@ import { json } from "@/lib/api-utils";
 import { cleanEnv } from "@/lib/env";
 import { dbConfigured, dbParsed, dbRaw, ensureSchema, sql } from "@/lib/db";
 import { describeDbRaw } from "@/lib/db-url";
+import { viaTrustedProxy } from "@/lib/proxy-trust";
 
 // Диагностика без секретов: что настроено и доходит ли сервер до базы. Показываем только код ошибки, без адресов.
-export async function GET() {
+export async function GET(req: Request) {
   await connection(); // всегда динамически: состояние окружения нельзя запекать при сборке
   const flags = {
     adminPassword: cleanEnv(process.env.ADMIN_PASSWORD, "ADMIN_PASSWORD").length >= 8,
     ipHashSecret: cleanEnv(process.env.IP_HASH_SECRET, "IP_HASH_SECRET").length > 0,
     tilesKey: cleanEnv(process.env.NEXT_PUBLIC_TILES_URL, "NEXT_PUBLIC_TILES_URL").length > 0,
+    proxySecretSet: cleanEnv(process.env.PROXY_SECRET, "PROXY_SECRET").length >= 16,
+    viaTrustedProxy: viaTrustedProxy(req.headers),
   };
   if (!dbConfigured()) return json({ db: "not_configured", hint: "Задайте DATABASE_URL в переменных окружения Vercel и сделайте Redeploy.", ...flags });
   const parsed = dbParsed();

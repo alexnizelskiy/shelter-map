@@ -7,6 +7,7 @@ import { COOKIE, checkPassword, isAdmin, makeToken } from "@/lib/admin-auth";
 import { ensureSchema, sql } from "@/lib/db";
 import { CLEAR_OPTIONS, setSetting } from "@/lib/chat-db";
 import { clean } from "@/lib/api-utils";
+import { clientIpFromHeaders } from "@/lib/proxy-trust";
 import { createHash } from "node:crypto";
 import { CITIES } from "@/lib/cities";
 import { bboxAround, parseCoords, slugify } from "@/lib/geo";
@@ -21,7 +22,7 @@ async function guard() {
 export async function login(_: { error?: string } | undefined, form: FormData): Promise<{ error?: string }> {
   await ensureSchema();
   const h = await headers();
-  const ip = (h.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
+  const ip = clientIpFromHeaders(h);
   const ipH = createHash("sha256").update(`admin:${ip}`).digest("hex").slice(0, 32);
   const [{ n }] = await sql()<{ n: number }[]>`SELECT count(*)::int AS n FROM admin_attempts WHERE ip_hash = ${ipH} AND created_at > now() - interval '15 minutes'`;
   if (n >= MAX_FAILS) return { error: "Слишком много попыток. Подождите 15 минут." };
