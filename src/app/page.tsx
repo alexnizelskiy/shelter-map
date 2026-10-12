@@ -7,14 +7,26 @@ import { HomeSkeleton } from "@/components/skeletons";
 
 async function Cities() {
   const cities = await loadCities();
+  const main = cities.filter((c) => !c.minor);
+  const rest = cities.filter((c) => c.minor);
   return (
     <>
       <h2>Города с данными</h2>
       <ul>
-        {cities.map((c) => (
+        {main.map((c) => (
           <li key={c.slug}><Link href={`/${c.slug}`}>{c.name}</Link></li>
         ))}
       </ul>
+      {rest.length > 0 && (
+        <details className="more-places">
+          <summary>Другие населённые пункты ({rest.length})</summary>
+          <ul>
+            {rest.map((c) => (
+              <li key={c.slug}><Link href={`/${c.slug}`}>{c.name}</Link></li>
+            ))}
+          </ul>
+        </details>
+      )}
     </>
   );
 }

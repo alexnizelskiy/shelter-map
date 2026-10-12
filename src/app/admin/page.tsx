@@ -3,8 +3,7 @@ import type { Metadata } from "next";
 import { connection } from "next/server";
 import { adminEnabled, isAdmin } from "@/lib/admin-auth";
 import { dbConfigured, ensureSchema, sql } from "@/lib/db";
-import { loadShelters } from "@/lib/shelters-server";
-import { loadCities } from "@/lib/cities-server";
+import { loadAllShelters } from "@/lib/shelters-server";
 import { distanceKm, fmtDate, type Shelter } from "@/lib/shelters";
 import { BASIS_LABEL, REPORT_LABEL, SUGGEST_KIND_LABEL, type SuggestBasis, type SuggestKind } from "@/lib/reports";
 import { approvePhoto, rejectPhoto, approveSuggestion, clearReports, logout, setHidden, setSuggestionState } from "./actions";
@@ -44,8 +43,7 @@ async function Content({ searchParams }: { searchParams: SP }) {
   await ensureSchema();
   const sp = await searchParams;
   const tab = sp.tab ?? "new";
-  const cityList = await loadCities({ includeInactive: true });
-  const all = (await Promise.all(cityList.map((c) => loadShelters(c.slug, { includeHidden: true })))).flat();
+  const all = await loadAllShelters({ includeHidden: true });
   const byId = new Map(all.map((s) => [s.id, s]));
 
   const [cnt] = await sql()<{ n: number; ni: number; p: number; ph: number; rq: number; ac: number }[]>`

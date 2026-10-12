@@ -6,7 +6,7 @@ import Link from "next/link";
 import {
   Building2, CalendarDays, ChevronRight, CircleAlert, DoorClosed, DoorOpen, Heart, Layers, LayoutGrid, Link2, List, LocateFixed,
   Map as MapIcon, MapPin, MapPinPlus, Minus, Navigation, Palette, Plus, Route, Search, SearchX, Settings, ShieldCheck, TriangleAlert,
-  Users, X, Clock, Info, ChevronDown, Car, Camera, Smartphone, WifiOff, Siren, Accessibility, PawPrint, MessageCircle, Volume2, VolumeX, ArrowUp, ArrowUpLeft, ArrowUpRight, CornerUpLeft, CornerUpRight, Undo2, RotateCw, Flag, Footprints, ListOrdered, type LucideIcon,
+  Users, X, Clock, Ruler, Info, ChevronDown, Car, Camera, Smartphone, WifiOff, Siren, Accessibility, PawPrint, MessageCircle, Volume2, VolumeX, ArrowUp, ArrowUpLeft, ArrowUpRight, CornerUpLeft, CornerUpRight, Undo2, RotateCw, Flag, Footprints, ListOrdered, type LucideIcon,
 } from "lucide-react";
 import { compressImage } from "@/lib/image";
 import { KIND_LABEL, distanceKm, fmtDate, type Shelter } from "@/lib/shelters";
@@ -509,6 +509,7 @@ function Passport({ citySlug, route, variantIdx, onVariant, onStartNav, routeBus
     { Icon: Layers, label: "Тип объекта", value: title(s) },
     ...(s.holder ? [{ Icon: Building2, label: "Организация / ориентир", value: s.holder }] : []),
     { Icon: Users, label: "Вместимость", value: s.capacity ? `${s.capacity.toLocaleString("ru-RU")} чел.` : "не указана" },
+    ...(s.area ? [{ Icon: Ruler, label: "Площадь", value: `${s.area.toLocaleString("ru-RU")} м²` }] : []),
     { Icon: ShieldCheck, label: "Категория", value: KIND_LABEL[s.kind] },
     ...(me ? [{ Icon: Navigation, label: "Расстояние", value: `${distanceKm(me.lat, me.lng, s.lat, s.lng).toFixed(1)} км` }] : []),
     {

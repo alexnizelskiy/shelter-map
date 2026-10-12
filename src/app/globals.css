@@ -556,3 +556,6 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .bar.alt i { background: var(--info); }
 .stats-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 @media (max-width: 760px) { .stats-cols { grid-template-columns: 1fr; } }
+.more-places { margin-top: 18px; }
+.more-places summary { cursor: pointer; padding: 12px 4px; font-weight: 600; color: var(--muted); font-size: calc(15px * var(--fs, 1)); }
+.more-places ul { margin-top: 6px; }

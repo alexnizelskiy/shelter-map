@@ -1,5 +1,3 @@
-import rostov from "../../data/rostov-na-donu.json";
-
 export type ShelterKind = "official_shelter" | "other_shelter" | "help_point" | "unknown";
 
 export type Tri = "yes" | "no";
@@ -13,6 +11,7 @@ export type Shelter = {
   address: string;
   holder?: string; // организация / ориентир из источника
   capacity?: number;
+  area?: number; // площадь помещения, м² (если есть в источнике)
   lat: number;
   lng: number;
   origin?: "official" | "community"; // community = добавлено по заявке жителя и проверено модератором
@@ -21,12 +20,6 @@ export type Shelter = {
   sourceUpdatedAt: string; // дата обновления данных самим источником
   sourceCheckedAt: string; // когда мы сверили с источником
 };
-
-const BY_CITY: Record<string, Shelter[]> = {
-  "rostov-na-donu": rostov as Shelter[],
-};
-
-export const getShelters = (citySlug: string): Shelter[] => BY_CITY[citySlug] ?? [];
 
 export const KIND_LABEL: Record<ShelterKind, string> = {
   official_shelter: "Убежище (официальный список)",

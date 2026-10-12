@@ -1,19 +1,24 @@
 import { connection } from "next/server";
-import { getShelters, type Shelter, type Tri } from "./shelters";
+import type { Shelter, Tri } from "./shelters";
+import { getShelters } from "./shelters-data";
+import { CITIES } from "./cities";
 import { SUGGEST_KIND_LABEL, type SuggestKind } from "./reports";
 import { dbConfigured, ensureSchema, sql } from "./db";
 
 type PubRow = { id: string; kind: Shelter["kind"]; address: string; lat: number; lng: number; note: string | null; source_url: string | null; day: string; object_type: string | null; placement: string | null; holder: string | null; capacity: number | null; origin: string };
 
 // Статический список администрации + точки, добавленные модератором, минус скрытые.
-export async function loadShelters(citySlug: string, opts: { includeHidden?: boolean } = {}): Promise<Shelter[]> {
+// citySlug = null: все города сразу (админка), запросы к базе при этом выполняются один раз.
+async function load(citySlug: string | null, opts: { includeHidden?: boolean }): Promise<Shelter[]> {
   await connection(); // всегда динамически: иначе точки запекутся при сборке без БД
-  const base = getShelters(citySlug);
+  const base = citySlug === null ? CITIES.flatMap((c) => getShelters(c.slug)) : getShelters(citySlug);
   if (!dbConfigured()) return base;
   try {
     await ensureSchema();
     const [pub, hid, acc] = await Promise.all([
-      sql()<PubRow[]>`SELECT id::text, kind, address, lat, lng, note, source_url, object_type, placement, holder, capacity, origin, to_char(created_at, 'YYYY-MM-DD') AS day FROM published_shelters WHERE city_slug = ${citySlug} ORDER BY id`,
+      citySlug === null
+        ? sql()<PubRow[]>`SELECT id::text, kind, address, lat, lng, note, source_url, object_type, placement, holder, capacity, origin, to_char(created_at, 'YYYY-MM-DD') AS day FROM published_shelters ORDER BY id`
+        : sql()<PubRow[]>`SELECT id::text, kind, address, lat, lng, note, source_url, object_type, placement, holder, capacity, origin, to_char(created_at, 'YYYY-MM-DD') AS day FROM published_shelters WHERE city_slug = ${citySlug} ORDER BY id`,
       sql()<{ shelter_id: string }[]>`SELECT shelter_id FROM shelter_overrides WHERE hidden`,
       sql()<{ shelter_id: string; step_free: Tri | null; pets: Tri | null; hours: string | null }[]>`SELECT shelter_id, step_free, pets, hours FROM shelter_access`,
     ]);
@@ -42,3 +47,6 @@ export async function loadShelters(citySlug: string, opts: { includeHidden?: boo
     return base;
   }
 }
+
+export const loadShelters = (citySlug: string, opts: { includeHidden?: boolean } = {}) => load(citySlug, opts);
+export const loadAllShelters = (opts: { includeHidden?: boolean } = {}) => load(null, opts);
