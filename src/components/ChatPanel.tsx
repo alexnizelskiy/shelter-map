@@ -284,7 +284,7 @@ export default function ChatPanel({ room, cityName, returnPath, onPickCity }: { 
 function ChatHead({ online, cityName, onPickCity }: { online: number; cityName: string; onPickCity: () => void }) {
   return (
     <div className="chat-head">
-      <button className="chip-city btn-like" onClick={onPickCity} aria-label="Выбрать город"><MapPin size={14} />{cityName}<ChevronDown size={14} /></button>
+      <button className="chip-city btn-like" onClick={onPickCity} aria-label="Выбрать город"><MapPin size={14} /><span className="chip-name">{cityName}</span><ChevronDown size={14} /></button>
       <span className="online" title="Сейчас в чате"><Users size={17} />{online.toLocaleString("ru-RU")}</span>
     </div>
   );

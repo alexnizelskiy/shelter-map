@@ -3,10 +3,10 @@ import "./globals.css";
 import PwaRegister from "@/components/PwaRegister";
 
 export const metadata: Metadata = {
-  title: "Карта укрытий",
+  title: { default: "Опора — карта укрытий", template: "%s | Опора" },
   description: "Укрытия и убежища по городам России: источник и дата проверки у каждой точки.",
-  applicationName: "Карта укрытий",
-  appleWebApp: { capable: true, title: "Укрытия", statusBarStyle: "default" },
+  applicationName: "Опора",
+  appleWebApp: { capable: true, title: "Опора", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {

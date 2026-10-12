@@ -23,6 +23,7 @@ import MyShelterButton from "./MyShelterButton";
 import OfflineSettings from "./OfflineSettings";
 import ChatPanel from "./ChatPanel";
 import Spinner from "./Spinner";
+import BrandLogo from "./BrandLogo";
 import { useNavigation, type NavState, type Variant } from "@/lib/useNavigation";
 import { formatClock, roundDist, type LngLat, type NavStep } from "@/lib/nav";
 import BasemapSwitch, { useBasemapId } from "./BasemapSwitch";
@@ -284,8 +285,8 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
           {!searchOpen && tab === "map" && (
             <>
               <div className="large-title">
-                <h1>Где укрыться</h1>
-                <button className="chip-city btn-like" onClick={() => setSearchOpen(true)} aria-label="Выбрать город"><MapPin size={14} />{city.name}<ChevronDown size={14} /></button>
+                <h1 className="brand"><BrandLogo height={38} /><span className="sr-only">Опора — карта укрытий</span></h1>
+                <button className="chip-city btn-like" onClick={() => setSearchOpen(true)} aria-label="Выбрать город"><MapPin size={14} /><span className="chip-name">{city.name}</span><ChevronDown size={14} /></button>
               </div>
               <button className="primary" onClick={locate}><Navigation size={18} />Найти ближайшее</button>
               <Link href="/alarm" className="alarm-btn"><Siren size={20} />Режим «Тревога»</Link>

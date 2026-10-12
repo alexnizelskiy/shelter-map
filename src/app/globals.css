@@ -497,3 +497,16 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 
 .offline-card { padding: 14px; margin: 8px 0; }
 .offline-pill { position: absolute; z-index: 9; left: 50%; top: 12px; transform: translateX(-50%); display: inline-flex; gap: 8px; align-items: center; padding: 10px 16px; border-radius: 999px; text-decoration: none; color: var(--fg); font-size: calc(13.5px * var(--fs, 1)); font-weight: 600; max-width: calc(100% - 24px); }
+
+/* ───────── Бренд «Опора» и чип города ───────── */
+.brand { margin: 0; display: flex; align-items: center; flex: none; line-height: 0; }
+.logo { display: block; height: auto; max-width: 100%; }
+.logo-dark { display: none; }
+:root[data-theme="dark"] .logo-light { display: none; }
+:root[data-theme="dark"] .logo-dark { display: block; }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.large-title .brand + .chip-city { margin-left: auto; }
+.chip-city { font-size: calc(12px * var(--fs, 1)); padding: 5px 9px; white-space: nowrap; min-width: 0; max-width: 58%; gap: 3px; }
+.chip-city svg { flex: none; }
+.chip-name { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.home .brand { margin: 0 0 12px; }

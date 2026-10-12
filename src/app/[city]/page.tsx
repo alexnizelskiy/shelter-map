@@ -11,7 +11,7 @@ export const generateStaticParams = () => CITIES.map((c) => ({ city: c.slug }));
 
 export async function generateMetadata({ params }: { params: Promise<{ city: string }> }): Promise<Metadata> {
   const city = getCity((await params).city);
-  return { title: city ? `Убежища и укрытия — ${city.name}` : "Убежища и укрытия" };
+  return { title: city ? `Укрытия — ${city.name}` : "Укрытия" };
 }
 
 async function City({ params }: { params: Promise<{ city: string }> }) {

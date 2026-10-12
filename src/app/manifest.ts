@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Карта укрытий",
-    short_name: "Укрытия",
+    name: "Опора — карта укрытий",
+    short_name: "Опора",
     description: "Ближайшее укрытие, маршрут и чат жителей. Режим «Тревога» работает без сети.",
     start_url: "/",
     scope: "/",
