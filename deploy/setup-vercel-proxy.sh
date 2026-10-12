@@ -73,8 +73,9 @@ for d in "${DOMAINS[@]}"; do
   AVAIL="/etc/nginx/sites-available/vercel-proxy-$d"
   ENABLED="/etc/nginx/sites-enabled/vercel-proxy-$d"
   [ -f "$AVAIL" ] && cp "$AVAIL" "${AVAIL}.bak.$(date +%Y%m%d%H%M%S)"
-  if is_apex "$d"; then CONTENT="$(cat "$TEMPLATE")"; else CONTENT="$(sed '/# WWW-BEGIN/,/# WWW-END/d' "$TEMPLATE")"; fi
-  printf '%s\n' "$CONTENT" | sed -e "s/__DOMAIN__/$d/g" > "$AVAIL"
+  # корневому домену добавляем www (оба имени уходят на Vercel без собственных редиректов), поддомену — только его имя
+  if is_apex "$d"; then NAMES="$d www.$d"; else NAMES="$d"; fi
+  sed -e "s/__DOMAIN__/$d/g" -e "s/__SERVER_NAMES__/$NAMES/" "$TEMPLATE" > "$AVAIL"
   ln -sfn "$AVAIL" "$ENABLED"; CREATED+=("$ENABLED")
 done
 
