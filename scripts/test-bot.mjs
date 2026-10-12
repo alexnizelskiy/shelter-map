@@ -10,6 +10,8 @@ const run = async (update, o = {}) => {
     subscribed: o.subscribed ?? (async () => true),
     origin: "https://oporamap.ru", channelLink: o.channelLink ?? "https://t.me/opora_news",
     gate: o.gate ?? true, urgent: o.urgent ?? true, log: () => {},
+    track: async (e) => { (o.events ??= []).push(e); },
+    blocked: async (id) => { (o.blockedIds ??= []).push(id); },
   });
   return calls;
 };
@@ -61,4 +63,35 @@ c = await run(cb);
 t("проверка: подписан → сообщение заменяется кнопкой открытия", c.map((x) => x.method).join() === "answerCallbackQuery,editMessageText" && buttons(c[1]).some((b) => b.web_app?.url === "https://oporamap.ru/tg"));
 c = await run({ callback_query: { id: "q2", from: { id: 42 }, data: "other" } });
 t("чужие callback_data игнорируются", c.length === 0);
+
+// учёт людей и метки ссылок
+let o = {};
+await run(msg("/start vk_post_12"), o);
+t("/start метка: событие start с меткой", o.events[0].kind === "start" && o.events[0].source === "vk_post_12" && o.events[0].userId === "42" && o.events[0].chatId === "1");
+t("…и результат проверки подписки (sub_ok)", o.events.some((e) => e.kind === "sub_ok" && e.source === "vk_post_12"));
+o = {};
+await run(msg("/start"), { ...o, subscribed: async () => false, events: (o.events = []) });
+t("/start без метки: источник пустой", o.events[0].kind === "start" && !o.events[0].source);
+t("…не подписан → sub_no", o.events.some((e) => e.kind === "sub_no"));
+o = { gate: false };
+await run(msg("/start"), o);
+t("проверка подписки выключена: sub_* не пишем", !o.events.some((e) => e.kind.startsWith("sub_")));
+o = {};
+c = await run(msg("/stop"), o);
+t("/stop: событие stop и ответ", o.events[0].kind === "stop" && c[0].params.text === TEXT.stopped);
+o = {};
+c = await run(msg("/notify"), o);
+t("/notify: событие resume и ответ", o.events[0].kind === "resume" && c[0].params.text === TEXT.resumed);
+c = await run(msg("/id"));
+t("/id: показывает идентификатор", c[0].params.text.includes("42"));
+o = {};
+await run(msg("/alarm"), o);
+t("/alarm: учёт открытия", o.events[0].kind === "open");
+o = {};
+await run({ my_chat_member: { chat: { id: 7, type: "private" }, from: { id: 42 }, new_chat_member: { status: "kicked" } } }, o);
+t("заблокировал бота: помечается", o.blockedIds?.[0] === "42");
+o = {};
+await run({ my_chat_member: { chat: { id: 7, type: "private" }, from: { id: 42 }, new_chat_member: { status: "member" } } }, o);
+t("разблокировал: не помечается", !o.blockedIds?.length);
+t("приветствие предупреждает про сообщения и /stop", TEXT.welcome.includes("/stop"));
 if (bad) process.exitCode = 1;

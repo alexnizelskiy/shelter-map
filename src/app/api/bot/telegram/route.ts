@@ -3,6 +3,7 @@ import { json } from "@/lib/api-utils";
 import { handleUpdate, type Update } from "@/lib/bot";
 import { channelLink, gateEnabled, isSubscribed, tg, urgentEnabled, webhookSecret } from "@/lib/telegram";
 import { siteOrigin } from "@/lib/chat-auth";
+import { markBlocked, trackSafe } from "@/lib/bot-users";
 
 const same = (a: string, b: string) => timingSafeEqual(createHash("sha256").update(a).digest(), createHash("sha256").update(b).digest());
 
@@ -23,6 +24,8 @@ export async function POST(req: Request) {
       channelLink: channelLink(),
       gate: gateEnabled(),
       urgent: urgentEnabled(),
+      track: async (e) => { await trackSafe({ platform: "telegram", extId: e.userId, chatId: e.chatId ?? e.userId, source: e.source, kind: e.kind, lang: e.lang, started: true }); },
+      blocked: (id) => markBlocked("telegram", id).catch((e) => console.error("bot blocked", e)),
       log: (msg, e) => console.error("bot:", msg, e),
     });
   } catch (e) {

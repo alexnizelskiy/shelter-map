@@ -1,4 +1,5 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { sourceForNewChatUser } from "./analytics";
 import { ensureSchema, sql } from "./db";
 import { dailyMaintenance } from "./maintenance";
 import { LEGAL_VERSION } from "./operator";
@@ -32,12 +33,19 @@ export async function loginIdentity(i: Identity): Promise<{ id: number; cookie: 
   const first = cleanFirstName(i.firstName);
   const initial = lastInitial(i.lastName);
   const avatar = i.avatar && /^https:\/\//i.test(i.avatar) ? i.avatar.slice(0, 500) : null;
-  const [r] = await sql()<{ id: string }[]>`
+  const [r] = await sql()<{ id: string; isNew: boolean }[]>`
     INSERT INTO chat_users (provider, ext_id, first_name, last_initial, avatar_url, consent_at, consent_version)
     VALUES (${i.provider}, ${i.extId}, ${first}, ${initial}, ${avatar}, now(), ${LEGAL_VERSION})
     ON CONFLICT (provider, ext_id) DO UPDATE SET first_name = EXCLUDED.first_name, last_initial = EXCLUDED.last_initial, avatar_url = EXCLUDED.avatar_url, last_seen = now(), consent_at = now(), consent_version = ${LEGAL_VERSION}
-    RETURNING id::text`;
+    RETURNING id::text, (xmax = 0) AS "isNew"`;
   const id = Number(r.id);
+  if (r.isNew) {
+    // откуда пришёл новый профиль: метка ссылки бота или метка сегодняшнего визита; сбой учёта вход не ломает
+    try {
+      const source = await sourceForNewChatUser(await headers(), i.provider, i.extId);
+      if (source) await sql()`UPDATE chat_users SET source = ${source} WHERE id = ${id} AND source = ''`;
+    } catch (e) { console.error("chat source", e); }
+  }
   return { id, cookie: makeSessionToken(id) };
 }
 

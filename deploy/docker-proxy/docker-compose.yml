@@ -1,0 +1,20 @@
+# Отдельный прокси на Vercel для новых сайтов (oporamap.ru, kontent...). Не затрагивает основной сайт и другие сервисы сервера.
+# Запуск и сертификаты делает setup.sh. Нужны свободные порты 80 и 443.
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: vercel-proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./data/conf.d:/etc/nginx/conf.d:ro
+      - ./data/proxy-common.inc:/etc/nginx/proxy-common.inc:ro
+      - ./data/www:/var/www/certbot:ro
+      - ./data/letsencrypt:/etc/letsencrypt:ro
+    mem_limit: 256m   # транскрибация и другие сервисы на сервере не страдают
+    cpus: 0.5
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }

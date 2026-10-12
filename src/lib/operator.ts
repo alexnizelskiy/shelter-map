@@ -18,4 +18,8 @@ export const RETENTION = {
   chatProfileInactiveMonths: 12,
   dataRequestDoneMonths: 12,
   adminAttemptsDays: 7,
+  botUserInactiveMonths: 12,
+  siteHitsDays: 180,
+  botEventsDays: 180,
+  broadcastDays: 90,
 };

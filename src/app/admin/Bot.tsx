@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { botToken, botUsername, channelId, channelLink, gateEnabled, tg, urgentEnabled, webhookSecret } from "@/lib/telegram";
 import { siteOrigin } from "@/lib/chat-auth";
 import { removeTelegramWebhook, setupTelegramBot } from "./actions";
+import BotMax from "./BotMax";
 
 type Info = { url?: string; pending_update_count?: number; last_error_message?: string; last_error_date?: number };
 type Row = { label: string; ok: boolean | null; text: string };
@@ -46,7 +47,7 @@ export default async function Bot({ result }: { result?: string }) {
   return (
     <>
       {result && <p className={result.startsWith("ok") ? "ok" : "err"} role="status" style={{ fontSize: 14 }}>{result.startsWith("ok") ? "Готово: бот настроен." : `Ошибка: ${result.slice(4)}`}</p>}
-      <h2 className="adm-section">Состояние бота</h2>
+      <h2 className="adm-section">Состояние бота Telegram</h2>
       <ul className="adm-list">
         {rows.map((r) => (
           <li key={r.label} className="adm-card" style={{ gap: 4 }}>
@@ -56,13 +57,14 @@ export default async function Bot({ result }: { result?: string }) {
         ))}
       </ul>
 
-      <h2 className="adm-section">Настройка</h2>
+      <h2 className="adm-section">Настройка Telegram</h2>
       <div className="adm-card adm-form">
-        <p className="note" style={{ margin: 0 }}>Кнопка ниже устанавливает вебхук на <b>{expected}</b>, команды бота (/start, /alarm, /help), кнопку меню «Опора» и описание. Её можно нажимать повторно. Перед этим добавьте в Vercel переменные и сделайте Redeploy.</p>
+        <p className="note" style={{ margin: 0 }}>Кнопка ниже устанавливает вебхук на <b>{expected}</b>, команды бота (/start, /alarm, /stop, /notify, /help), кнопку меню «Опора» и описание. Её можно нажимать повторно. Перед этим добавьте в Vercel переменные и сделайте Redeploy.</p>
         <form action={setupTelegramBot}><button className="primary">Установить бота</button></form>
         <form action={removeTelegramWebhook}><button className="btn-plain btn-danger">Снять вебхук (выключить бота)</button></form>
       </div>
       <p className="note">Мини-приложение открывается по адресу <b>{origin}/tg</b>. Режим «Тревога» (<b>{origin}/alarm</b>) всегда доступен без подписки.</p>
+      <BotMax />
     </>
   );
 }

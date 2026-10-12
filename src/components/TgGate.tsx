@@ -7,28 +7,53 @@ import { BellRing, CheckCircle2, Send, Siren, Smartphone } from "lucide-react";
 import Spinner from "./Spinner";
 import BrandLogo from "./BrandLogo";
 
-type TgWebApp = { initData?: string; ready?: () => void; expand?: () => void; openTelegramLink?: (u: string) => void };
+type Platform = "telegram" | "max";
+type WebApp = { initData?: string; initDataUnsafe?: { start_param?: string }; ready?: () => void; expand?: () => void; openTelegramLink?: (u: string) => void; openLink?: (u: string) => void };
 type State =
   | { t: "loading" }
   | { t: "browser" }
   | { t: "need"; link: string; urgent: boolean }
   | { t: "error"; text: string; urgent: boolean };
 
-const webApp = (): TgWebApp | undefined => (window as unknown as { Telegram?: { WebApp?: TgWebApp } }).Telegram?.WebApp;
+// Настройки двух мессенджеров: скрипт моста, где лежит объект приложения, адрес проверки и название
+const CONF = {
+  telegram: {
+    name: "Telegram",
+    script: "https://telegram.org/js/telegram-web-app.js",
+    gate: "/api/tg/gate",
+    channel: "tg",
+    app: (): WebApp | undefined => (window as unknown as { Telegram?: { WebApp?: WebApp } }).Telegram?.WebApp,
+    botLink: () => (process.env.NEXT_PUBLIC_TELEGRAM_BOT ? `https://t.me/${process.env.NEXT_PUBLIC_TELEGRAM_BOT}` : ""),
+  },
+  max: {
+    name: "MAX",
+    script: "https://st.max.ru/js/max-web-app.js",
+    gate: "/api/max/gate",
+    channel: "max",
+    app: (): WebApp | undefined => (window as unknown as { WebApp?: WebApp }).WebApp,
+    botLink: () => (process.env.NEXT_PUBLIC_MAX_BOT ? `https://max.ru/${process.env.NEXT_PUBLIC_MAX_BOT.replace(/^@/, "")}` : ""),
+  },
+} as const;
 
-// Вход в мини-приложение Telegram: проверяем подписку на канал и пускаем на карту
-export default function TgGate() {
+// Вход в мини-приложение Telegram или MAX: проверяем подписку на канал и пускаем на карту
+export default function TgGate({ platform = "telegram" }: { platform?: Platform }) {
+  const conf = CONF[platform];
   const router = useRouter();
   const [state, setState] = useState<State>({ t: "loading" });
   const [busy, setBusy] = useState(false);
-  const bot = process.env.NEXT_PUBLIC_TELEGRAM_BOT;
+  const botLink = conf.botLink();
 
   const check = useCallback(async () => {
-    const wa = webApp();
+    const wa = conf.app();
     const initData = wa?.initData ?? "";
     if (!initData) { setState({ t: "browser" }); return; }
     try {
-      const r = await fetch("/api/tg/gate", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ initData }) });
+      sessionStorage.setItem("opora_ch", conf.channel);
+      const sp = wa?.initDataUnsafe?.start_param; // метка ссылки, с которой открыли мини-приложение
+      if (sp) sessionStorage.setItem("opora_src", sp);
+    } catch { /* приватный режим */ }
+    try {
+      const r = await fetch(conf.gate, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ initData, startParam: wa?.initDataUnsafe?.start_param ?? "" }) });
       const j = await r.json().catch(() => ({}));
       if (j.ok) { router.replace("/"); return; }
       if (j.reason === "not_subscribed") setState({ t: "need", link: j.link ?? "", urgent: j.urgent !== false });
@@ -36,20 +61,25 @@ export default function TgGate() {
     } catch {
       setState({ t: "error", text: "Нет соединения. Проверьте сеть и повторите.", urgent: true });
     }
-  }, [router]);
+  }, [router, conf]);
 
   useEffect(() => {
-    const run = () => { webApp()?.ready?.(); webApp()?.expand?.(); check(); };
-    const src = "https://telegram.org/js/telegram-web-app.js";
+    const run = () => { conf.app()?.ready?.(); conf.app()?.expand?.(); check(); };
+    const src = conf.script;
     const have = document.querySelector(`script[src="${src}"]`);
-    if (have && webApp()) { const t = setTimeout(run, 0); return () => clearTimeout(t); }
+    if (have && conf.app()) { const t = setTimeout(run, 0); return () => clearTimeout(t); }
     const s = document.createElement("script");
     s.src = src; s.async = true; s.onload = run; s.onerror = () => setState({ t: "browser" });
     document.head.appendChild(s);
-  }, [check]);
+  }, [check, conf]);
 
   const recheck = async () => { setBusy(true); await check(); setBusy(false); };
-  const openChannel = (link: string) => { const w = webApp(); if (w?.openTelegramLink) w.openTelegramLink(link); else window.open(link, "_blank"); };
+  const openChannel = (link: string) => {
+    const w = conf.app();
+    if (platform === "telegram" && w?.openTelegramLink && link.includes("t.me")) w.openTelegramLink(link);
+    else if (w?.openLink) w.openLink(link);
+    else window.open(link, "_blank");
+  };
 
   return (
     <main className="gate">
@@ -61,8 +91,8 @@ export default function TgGate() {
         <div className="card gate-card">
           <span className="ico ico-blue"><Smartphone size={20} /></span>
           <h1>Откройте Опору через бота</h1>
-          <p className="note" style={{ margin: 0 }}>Эта страница работает внутри Telegram. Обычный сайт открывается без бота.</p>
-          {bot && <a className="btn" href={`https://t.me/${bot}`}><Send size={16} />Открыть бота в Telegram</a>}
+          <p className="note" style={{ margin: 0 }}>Эта страница работает внутри {conf.name}. Обычный сайт открывается без бота.</p>
+          {botLink && <a className="btn" href={botLink}><Send size={16} />Открыть бота в {conf.name}</a>}
           <Link className="btn btn-ghost-wide" href="/">Открыть сайт</Link>
         </div>
       )}

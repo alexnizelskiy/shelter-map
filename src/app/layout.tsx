@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { Suspense } from "react";
 import PwaRegister from "@/components/PwaRegister";
+import Analytics from "@/components/Analytics";
 
 export const metadata: Metadata = {
   title: { default: "Опора — карта укрытий", template: "%s | Опора" },
@@ -35,6 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         {children}
         <PwaRegister />
+        <Suspense fallback={null}><Analytics /></Suspense>
       </body>
     </html>
   );

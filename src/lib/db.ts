@@ -183,6 +183,76 @@ CREATE TABLE IF NOT EXISTS admin_attempts (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS admin_attempts_idx ON admin_attempts (ip_hash, created_at DESC);
+
+-- ───── Боты и аналитика ─────
+-- Люди, открывшие бота или мини-приложение в Telegram / MAX. Имя не храним: нужен только идентификатор для ответов и рассылок.
+CREATE TABLE IF NOT EXISTS bot_users (
+  id         BIGSERIAL PRIMARY KEY,
+  platform   TEXT NOT NULL CHECK (platform IN ('telegram','max')),
+  ext_id     TEXT NOT NULL,
+  chat_id    TEXT,
+  source     TEXT NOT NULL DEFAULT '',
+  started    BOOLEAN NOT NULL DEFAULT false,
+  notify     BOOLEAN NOT NULL DEFAULT true,
+  blocked    BOOLEAN NOT NULL DEFAULT false,
+  subscribed BOOLEAN,
+  lang       TEXT,
+  opens      INT NOT NULL DEFAULT 0,
+  first_seen TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_seen  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (platform, ext_id)
+);
+CREATE INDEX IF NOT EXISTS bot_users_first_idx ON bot_users (first_seen);
+CREATE TABLE IF NOT EXISTS bot_activity (
+  user_id BIGINT NOT NULL REFERENCES bot_users(id) ON DELETE CASCADE,
+  day     DATE NOT NULL,
+  PRIMARY KEY (user_id, day)
+);
+CREATE INDEX IF NOT EXISTS bot_activity_day_idx ON bot_activity (day);
+CREATE TABLE IF NOT EXISTS bot_events (
+  id         BIGSERIAL PRIMARY KEY,
+  user_id    BIGINT NOT NULL REFERENCES bot_users(id) ON DELETE CASCADE,
+  kind       TEXT NOT NULL,
+  source     TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS bot_events_idx ON bot_events (kind, created_at DESC);
+
+-- Посещения сайта без cookie: один посетитель в сутки = одна строка. Идентификатор — хэш IP и браузера с суточной солью, между днями не сопоставляется.
+CREATE TABLE IF NOT EXISTS site_hits (
+  day      DATE NOT NULL,
+  visitor  TEXT NOT NULL,
+  source   TEXT NOT NULL DEFAULT '',
+  channel  TEXT NOT NULL DEFAULT 'web',
+  city     TEXT NOT NULL DEFAULT '',
+  hits     INT NOT NULL DEFAULT 1,
+  last_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (day, visitor)
+);
+ALTER TABLE chat_users ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT '';
+
+-- Рассылки уведомлений через ботов
+CREATE TABLE IF NOT EXISTS broadcasts (
+  id          BIGSERIAL PRIMARY KEY,
+  text        TEXT NOT NULL,
+  button_text TEXT,
+  button_url  TEXT,
+  platforms   TEXT[] NOT NULL,
+  source      TEXT,
+  total       INT NOT NULL DEFAULT 0,
+  status      TEXT NOT NULL DEFAULT 'sending' CHECK (status IN ('sending','done','cancelled')),
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  finished_at TIMESTAMPTZ
+);
+CREATE TABLE IF NOT EXISTS broadcast_deliveries (
+  broadcast_id BIGINT NOT NULL REFERENCES broadcasts(id) ON DELETE CASCADE,
+  user_id      BIGINT NOT NULL REFERENCES bot_users(id) ON DELETE CASCADE,
+  state        TEXT NOT NULL DEFAULT 'pending' CHECK (state IN ('pending','sent','failed','blocked')),
+  error        TEXT,
+  sent_at      TIMESTAMPTZ,
+  PRIMARY KEY (broadcast_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS broadcast_deliveries_state_idx ON broadcast_deliveries (broadcast_id, state);
 `;
 
 // Сводка по каждой точке за окно TTL. $1 — часы TTL, $2 — часы окна «проблем», $3 — id точек города.

@@ -537,3 +537,19 @@ h1, h2, h3 { letter-spacing: -0.02em; }
   .passport-head .icon-btn { width: 40px; height: 40px; }
   .app[data-card] .controls, .app[data-card] .loc-prompt { display: none; }
 }
+
+/* ───────── Админка: статистика и рассылки ───────── */
+.kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin: 6px 0; }
+.kpi { padding: 14px; display: grid; gap: 2px; }
+.kpi b { font-size: calc(26px * var(--fs, 1)); letter-spacing: -0.02em; }
+.kpi span { color: var(--muted); font-size: calc(12.5px * var(--fs, 1)); }
+.stats-table { width: 100%; border-collapse: collapse; font-size: calc(13.5px * var(--fs, 1)); }
+.stats-table th, .stats-table td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.stats-table th { color: var(--muted); font-weight: 600; font-size: calc(12px * var(--fs, 1)); }
+.stats-table tr:last-child td { border-bottom: 0; }
+.bar { height: 10px; border-radius: 999px; background: var(--field); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); border-radius: inherit; transition: width .3s; }
+.bar.sm { height: 6px; width: 90px; display: inline-block; margin-right: 8px; vertical-align: middle; }
+.bar.alt i { background: var(--info); }
+.stats-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 760px) { .stats-cols { grid-template-columns: 1fr; } }

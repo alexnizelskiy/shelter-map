@@ -17,6 +17,12 @@ export const PURGE_SQL = [
   `DELETE FROM access_suggestions WHERE state <> 'new' AND created_at < now() - interval '${R.ipHashDays} days'`,
   `UPDATE access_suggestions SET ip_hash = '' WHERE ip_hash <> '' AND created_at < now() - interval '${R.ipHashDays} days'`,
   `DELETE FROM shelter_photos WHERE state = 'rejected' AND reviewed_at < now() - interval '7 days'`,
+  // боты и аналитика: неактивные подписчики, счётчики посещений, события и журнал рассылок
+  `DELETE FROM bot_users WHERE last_seen < now() - interval '${R.botUserInactiveMonths} months'`,
+  `DELETE FROM site_hits WHERE day < current_date - ${R.siteHitsDays}`,
+  `DELETE FROM bot_events WHERE created_at < now() - interval '${R.botEventsDays} days'`,
+  `DELETE FROM bot_activity WHERE day < current_date - ${R.siteHitsDays}`,
+  `DELETE FROM broadcasts WHERE created_at < now() - interval '${R.broadcastDays} days'`,
 ];
 
 // Раз в сутки удаляет данные, срок хранения которых вышел. Запускается лениво при обращении к чату и отметкам.

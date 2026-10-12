@@ -8,6 +8,9 @@ import { ensureSchema, sql } from "@/lib/db";
 import { CLEAR_OPTIONS, setSetting } from "@/lib/chat-db";
 import { siteOrigin } from "@/lib/chat-auth";
 import { tg, webhookSecret } from "@/lib/telegram";
+import { maxApi, maxWebhookSecret } from "@/lib/max";
+import { isHttps, MAX_TEXT, sendOne } from "@/lib/broadcast";
+import { cleanSource } from "@/lib/bot-users";
 import { clean } from "@/lib/api-utils";
 import { clientIpFromHeaders } from "@/lib/proxy-trust";
 import { createHash } from "node:crypto";
@@ -164,10 +167,12 @@ export async function setupTelegramBot() {
   let result = "ok";
   try {
     if (!webhookSecret()) throw new Error("не задан TELEGRAM_WEBHOOK_SECRET");
-    await tg("setWebhook", { url: `${origin}/api/bot/telegram`, secret_token: webhookSecret(), allowed_updates: ["message", "callback_query"] });
+    await tg("setWebhook", { url: `${origin}/api/bot/telegram`, secret_token: webhookSecret(), allowed_updates: ["message", "callback_query", "my_chat_member"] });
     await tg("setMyCommands", { commands: [
       { command: "start", description: "Открыть карту" },
       { command: "alarm", description: "Режим «Тревога»" },
+      { command: "stop", description: "Не присылать сообщения" },
+      { command: "notify", description: "Снова присылать сообщения" },
       { command: "help", description: "Помощь" },
     ] });
     await tg("setChatMenuButton", { menu_button: { type: "web_app", text: "Опора", web_app: { url: `${origin}/tg` } } });
@@ -278,4 +283,84 @@ export async function dismissChatReports(form: FormData) {
   const id = Number(form.get("id"));
   if (Number.isFinite(id)) await sql()`DELETE FROM chat_reports WHERE message_id = ${id}`;
   revalidatePath("/admin");
+}
+
+// ───── MAX: бот ─────
+export async function setupMaxBot() {
+  await guard();
+  const origin = siteOrigin(new Request("http://x", { headers: await headers() }));
+  let result = "ok";
+  try {
+    const secret = maxWebhookSecret();
+    if (!/^[A-Za-z0-9-]{5,256}$/.test(secret)) throw new Error("MAX_WEBHOOK_SECRET: 5–256 символов, только латиница, цифры и дефис");
+    await maxApi("POST", "/subscriptions", { body: { url: `${origin}/api/bot/max`, update_types: ["bot_started", "message_created", "message_callback", "bot_stopped", "dialog_removed"], secret } });
+    await maxApi("PATCH", "/me", { body: {
+      description: "Опора — карта укрытий. Показывает ближайшее укрытие, строит маршрут, работает без сети в режиме «Тревога». Информация справочная: следуйте оповещениям МЧС.",
+      commands: [
+        { name: "start", description: "Открыть карту" },
+        { name: "alarm", description: "Режим «Тревога»" },
+        { name: "stop", description: "Не присылать сообщения" },
+        { name: "notify", description: "Снова присылать сообщения" },
+        { name: "help", description: "Помощь" },
+      ],
+    } });
+  } catch (e) {
+    result = `err ${e instanceof Error ? e.message : String(e)}`.slice(0, 200);
+  }
+  redirect(`/admin?tab=bot&result=${encodeURIComponent(result)}`);
+}
+
+export async function removeMaxWebhook() {
+  await guard();
+  const origin = siteOrigin(new Request("http://x", { headers: await headers() }));
+  let result = "ok";
+  try { await maxApi("DELETE", "/subscriptions", { query: { url: `${origin}/api/bot/max` } }); } catch (e) { result = `err ${e instanceof Error ? e.message : String(e)}`.slice(0, 200); }
+  redirect(`/admin?tab=bot&result=${encodeURIComponent(result)}`);
+}
+
+// ───── рассылки ─────
+export async function createBroadcast(form: FormData) {
+  await guard();
+  const text = String(form.get("text") ?? "").replace(/\r/g, "").trim();
+  const buttonText = clean(form.get("button_text"), 40) || null;
+  const buttonUrl = clean(form.get("button_url"), 500) || null;
+  const platforms = (["telegram", "max"] as const).filter((p) => form.get(`p_${p}`) === "1");
+  const sourceRaw = String(form.get("source") ?? "");
+  const source = sourceRaw === "" || sourceRaw === "__all" ? null : cleanSource(sourceRaw) || null;
+  let err = "";
+  if (text.length < 3 || text.length > MAX_TEXT) err = `Текст: от 3 до ${MAX_TEXT} символов`;
+  else if (!platforms.length) err = "Выберите хотя бы одну платформу";
+  else if ((buttonText && !buttonUrl) || (buttonUrl && !buttonText)) err = "Кнопка: заполните и надпись, и ссылку (или оставьте обе пустыми)";
+  else if (buttonUrl && !isHttps(buttonUrl)) err = "Ссылка кнопки должна начинаться с https://";
+  if (err) redirect(`/admin?tab=broadcast&result=${encodeURIComponent(`err ${err}`)}`);
+
+  const id = await sql().begin(async (tx) => {
+    const [b] = await tx<{ id: string }[]>`INSERT INTO broadcasts (text, button_text, button_url, platforms, source) VALUES (${text}, ${buttonText}, ${buttonUrl}, ${platforms}, ${source}) RETURNING id::text`;
+    const ins = await tx`
+      INSERT INTO broadcast_deliveries (broadcast_id, user_id)
+      SELECT ${b.id}::bigint, id FROM bot_users
+      WHERE started AND notify AND NOT blocked AND chat_id IS NOT NULL AND platform = ANY(${platforms}) AND (${source}::text IS NULL OR source = ${source})`;
+    await tx`UPDATE broadcasts SET total = ${ins.count}, status = ${ins.count === 0 ? "done" : "sending"}, finished_at = ${ins.count === 0 ? new Date() : null} WHERE id = ${b.id}`;
+    return b.id;
+  });
+  redirect(`/admin?tab=broadcast&run=${id}`);
+}
+
+// Тест: отправить сообщение одному человеку (свой ID можно узнать командой /id в боте)
+export async function sendBroadcastTest(form: FormData) {
+  await guard();
+  const platform = form.get("platform") === "max" ? "max" : "telegram";
+  const to = clean(form.get("to"), 40);
+  const text = String(form.get("text") ?? "").trim();
+  const buttonText = clean(form.get("button_text"), 40) || null;
+  const buttonUrl = clean(form.get("button_url"), 500) || null;
+  let result = "ok";
+  if (!/^\d{3,20}$/.test(to)) result = "err Укажите числовой ID получателя (его покажет команда /id в боте)";
+  else if (text.length < 3) result = "err Введите текст сообщения";
+  else if (buttonUrl && !isHttps(buttonUrl)) result = "err Ссылка кнопки должна начинаться с https://";
+  else {
+    const r = await sendOne({ platform, chat_id: to }, { text, button_text: buttonUrl ? buttonText : null, button_url: buttonUrl });
+    result = r.state === "sent" ? "ok" : `err ${r.error ?? "не доставлено"}`;
+  }
+  redirect(`/admin?tab=broadcast&result=${encodeURIComponent(result)}&test=1`);
 }
