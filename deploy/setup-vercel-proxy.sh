@@ -7,6 +7,8 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATE="${HERE}/nginx/vercel-proxy.conf"
+COMMON_TEMPLATE="${HERE}/nginx/vercel-proxy-common.conf"
+SNIPPET="/etc/nginx/snippets/vercel-proxy-common.conf"
 NEW_SECRET_FILE="/etc/nginx/vercel-proxy.secret"
 OLD_SECRET_FILE="/etc/nginx/opora-proxy.secret"   # совместимость с прежней версией скрипта
 
@@ -36,7 +38,7 @@ if [ "${1:-}" = "cert" ]; then
 fi
 
 [ $# -ge 1 ] || { echo "Укажите домены: sudo bash $0 example.ru [other.ru ...]"; exit 1; }
-[ -f "$TEMPLATE" ] || { echo "Не найден шаблон $TEMPLATE (папка nginx должна лежать рядом со скриптом)"; exit 1; }
+[ -f "$TEMPLATE" ] && [ -f "$COMMON_TEMPLATE" ] || { echo "Не найдены шаблоны в $HERE/nginx (папка nginx должна лежать рядом со скриптом)"; exit 1; }
 DOMAINS=()
 for raw in "$@"; do
   d="$(to_ascii "$raw")"
@@ -52,12 +54,27 @@ else SECRET="${PROXY_SECRET:-$(openssl rand -hex 24)}"; fi
 ( umask 077; printf '%s' "$SECRET" > "$NEW_SECRET_FILE" )
 
 CREATED=()
+mkdir -p /etc/nginx/snippets
+[ -f "$SNIPPET" ] && cp "$SNIPPET" "${SNIPPET}.bak.$(date +%Y%m%d%H%M%S)"
+( umask 077; sed "s/__PROXY_SECRET__/$SECRET/" "$COMMON_TEMPLATE" > "$SNIPPET" )
+
+# общий upstream vercel_up: если на сервере его ещё нет, создаём (адреса Vercel, второй — запасной)
+if ! grep -rqE "^\s*upstream\s+vercel_up\b" /etc/nginx 2>/dev/null; then
+  UPSTREAM_CONF="/etc/nginx/conf.d/vercel_proxy_upstream.conf"
+  printf 'upstream vercel_up {\n    server 76.76.21.21:443 max_fails=3 fail_timeout=10s;\n    server 216.198.79.131:443 backup;\n    keepalive 32;\n}\n' > "$UPSTREAM_CONF"; CREATED+=("$UPSTREAM_CONF")
+fi
+# зона кэша cache_zone: если её нет, создаём
+if ! grep -rq "keys_zone=cache_zone" /etc/nginx 2>/dev/null; then
+  CACHE_CONF="/etc/nginx/conf.d/vercel_proxy_cache.conf"; mkdir -p /var/cache/nginx_vercel
+  printf 'proxy_cache_path /var/cache/nginx_vercel levels=1:2 keys_zone=cache_zone:20m max_size=1g inactive=60m use_temp_path=off;\n' > "$CACHE_CONF"; CREATED+=("$CACHE_CONF")
+fi
+
 for d in "${DOMAINS[@]}"; do
   AVAIL="/etc/nginx/sites-available/vercel-proxy-$d"
   ENABLED="/etc/nginx/sites-enabled/vercel-proxy-$d"
   [ -f "$AVAIL" ] && cp "$AVAIL" "${AVAIL}.bak.$(date +%Y%m%d%H%M%S)"
   if is_apex "$d"; then CONTENT="$(cat "$TEMPLATE")"; else CONTENT="$(sed '/# WWW-BEGIN/,/# WWW-END/d' "$TEMPLATE")"; fi
-  printf '%s\n' "$CONTENT" | sed -e "s/__DOMAIN__/$d/g" -e "s/__PROXY_SECRET__/$SECRET/" > "$AVAIL"
+  printf '%s\n' "$CONTENT" | sed -e "s/__DOMAIN__/$d/g" > "$AVAIL"
   ln -sfn "$AVAIL" "$ENABLED"; CREATED+=("$ENABLED")
 done
 
