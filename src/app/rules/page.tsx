@@ -1,12 +1,11 @@
 import type { Metadata } from "next";
-import { LegalLinks } from "@/components/LegalPage";
+import LegalPage from "@/components/LegalPage";
 
 export const metadata: Metadata = { title: "Правила чата" };
 
 export default function Rules() {
   return (
-    <main className="home" style={{ lineHeight: 1.55 }}>
-      <h1>Правила чата</h1>
+    <LegalPage title="Правила чата">
       <p>Чат нужен, чтобы жители могли поделиться тем, что видят вокруг: открыт ли вход, где найти место, что произошло рядом. Пишите коротко и по делу.</p>
       <h2>Что нельзя</h2>
       <ul>
@@ -24,7 +23,6 @@ export default function Rules() {
         <li>На любое сообщение можно пожаловаться. Модератор может удалить сообщение и заблокировать автора.</li>
       </ul>
       <p className="note">Сообщения в чате — мнение пользователей, а не официальная информация. Следуйте оповещениям МЧС.</p>
-      <LegalLinks />
-    </main>
+    </LegalPage>
   );
 }

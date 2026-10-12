@@ -509,3 +509,11 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .chip-city svg { flex: none; }
 .chip-name { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .home .brand { margin: 0 0 12px; }
+
+/* ───────── Вход в мини-приложение (подписка на канал) ───────── */
+.gate { max-width: 460px; margin: 0 auto; padding: 28px 16px 60px; display: grid; gap: 16px; min-height: 100%; align-content: start; }
+.gate-brand { display: flex; justify-content: center; padding-top: 8px; }
+.gate-card { padding: 18px; display: grid; gap: 12px; justify-items: stretch; }
+.gate-card h1 { margin: 0; font-size: calc(22px * var(--fs, 1)); }
+.gate-card .btn { border: 0; cursor: pointer; font-family: inherit; text-decoration: none; }
+.gate-card .ico { width: 42px; height: 42px; }

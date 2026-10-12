@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { LEGAL_DATE_RU, operator } from "@/lib/operator";
+import BackLink from "./BackLink";
 
 // Реквизит оператора: если переменная окружения не заполнена, на странице видна жёлтая метка, а не пустота
 export function Op({ field }: { field: "name" | "inn" | "email" | "address" }) {
@@ -23,7 +23,7 @@ export function LegalLinks() {
 export default function LegalPage({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <main className="legal">
-      <Link href="/" className="legal-back"><ArrowLeft size={16} />На карту</Link>
+      <BackLink />
       <h1>{title}</h1>
       <p className="note" style={{ marginLeft: 0 }}>Редакция от {LEGAL_DATE_RU}</p>
       {children}

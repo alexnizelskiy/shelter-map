@@ -6,6 +6,8 @@ import { revalidatePath } from "next/cache";
 import { COOKIE, checkPassword, isAdmin, makeToken } from "@/lib/admin-auth";
 import { ensureSchema, sql } from "@/lib/db";
 import { CLEAR_OPTIONS, setSetting } from "@/lib/chat-db";
+import { siteOrigin } from "@/lib/chat-auth";
+import { tg, webhookSecret } from "@/lib/telegram";
 import { clean } from "@/lib/api-utils";
 import { clientIpFromHeaders } from "@/lib/proxy-trust";
 import { createHash } from "node:crypto";
@@ -153,6 +155,35 @@ export async function rejectPhoto(form: FormData) {
   // отклонённое фото не храним: освобождаем место
   if (Number.isFinite(id)) await sql()`UPDATE shelter_photos SET state = 'rejected', data = NULL, reviewed_at = now() WHERE id = ${id}`;
   revalidatePath("/admin");
+}
+
+// ───── бот Telegram ─────
+export async function setupTelegramBot() {
+  await guard();
+  const origin = siteOrigin(new Request("http://x", { headers: await headers() }));
+  let result = "ok";
+  try {
+    if (!webhookSecret()) throw new Error("не задан TELEGRAM_WEBHOOK_SECRET");
+    await tg("setWebhook", { url: `${origin}/api/bot/telegram`, secret_token: webhookSecret(), allowed_updates: ["message", "callback_query"] });
+    await tg("setMyCommands", { commands: [
+      { command: "start", description: "Открыть карту" },
+      { command: "alarm", description: "Режим «Тревога»" },
+      { command: "help", description: "Помощь" },
+    ] });
+    await tg("setChatMenuButton", { menu_button: { type: "web_app", text: "Опора", web_app: { url: `${origin}/tg` } } });
+    await tg("setMyShortDescription", { short_description: "Опора — карта укрытий: ближайшее укрытие, маршрут и чат жителей." });
+    await tg("setMyDescription", { description: "Опора — карта укрытий. Показывает ближайшее укрытие, строит маршрут, работает без сети в режиме «Тревога». Информация справочная: следуйте оповещениям МЧС." });
+  } catch (e) {
+    result = `err ${e instanceof Error ? e.message : String(e)}`.slice(0, 200);
+  }
+  redirect(`/admin?tab=bot&result=${encodeURIComponent(result)}`);
+}
+
+export async function removeTelegramWebhook() {
+  await guard();
+  let result = "ok";
+  try { await tg("deleteWebhook", { drop_pending_updates: false }); } catch (e) { result = `err ${e instanceof Error ? e.message : String(e)}`.slice(0, 200); }
+  redirect(`/admin?tab=bot&result=${encodeURIComponent(result)}`);
 }
 
 // ───── доступность ─────
