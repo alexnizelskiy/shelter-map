@@ -6,6 +6,13 @@ export const metadata: Metadata = {
   title: { default: "Опора — карта укрытий", template: "%s | Опора" },
   description: "Укрытия и убежища по городам России: источник и дата проверки у каждой точки.",
   applicationName: "Опора",
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/pwa-icon/48", sizes: "48x48", type: "image/png" },
+    ],
+    shortcut: "/pwa-icon/48",
+  },
   appleWebApp: { capable: true, title: "Опора", statusBarStyle: "default" },
 };
 
