@@ -97,8 +97,8 @@ export default function CityMap({ center, zoom, shelters, selectedId, onSelect, 
 
     const applyTheme = () => {
       if (!m.getLayer("base")) return;
-      // тёмная тема: схемы инвертируем по яркости, спутник оставляем как есть
-      const dark = document.documentElement.dataset.theme === "dark" && !baseRef.current.keepColors;
+      // тёмная тема: растровую схему инвертируем по яркости
+      const dark = document.documentElement.dataset.theme === "dark";
       m.setPaintProperty("base", "raster-brightness-min", dark ? 0.92 : 0);
       m.setPaintProperty("base", "raster-brightness-max", dark ? 0.04 : 1);
       m.setPaintProperty("base", "raster-hue-rotate", dark ? 180 : 0);
@@ -254,18 +254,14 @@ function lineData(route: [number, number][] | null): GeoJSON.FeatureCollection {
   return { type: "FeatureCollection", features: route && route.length > 1 ? [{ type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: route } }] : [] };
 }
 
-// Подложка = растровый слой "base" (+ необязательные подписи "base-ov"); пересоздаётся при смене.
+// Подложка = растровый слой "base" ; пересоздаётся при смене.
 function addBase(m: maplibregl.Map, b: Basemap, before?: string) {
-  for (const id of ["base-ov", "base"]) {
+  for (const id of ["base"]) {
     if (m.getLayer(id)) m.removeLayer(id);
     if (m.getSource(id)) m.removeSource(id);
   }
   m.addSource("base", rasterSource(b.tiles, b));
   m.addLayer({ id: "base", type: "raster", source: "base" }, before);
-  if (b.overlay) {
-    m.addSource("base-ov", rasterSource(b.overlay, b));
-    m.addLayer({ id: "base-ov", type: "raster", source: "base-ov" }, before);
-  }
 }
 
 function toGeoJSON(list: Shelter[], flagged: Set<string>): GeoJSON.FeatureCollection {
