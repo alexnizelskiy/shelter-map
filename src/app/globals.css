@@ -501,9 +501,8 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 /* ───────── Бренд «Опора» и чип города ───────── */
 .brand { margin: 0; display: flex; align-items: center; flex: none; line-height: 0; }
 .logo { display: block; height: auto; max-width: 100%; }
-.logo-dark { display: none; }
-:root[data-theme="dark"] .logo-light { display: none; }
-:root[data-theme="dark"] .logo-dark { display: block; }
+/* высокая контрастность на светлом фоне: зелёный логотип темнее, чтобы читался */
+:root[data-contrast="high"]:not([data-theme="dark"]) .logo { filter: brightness(0.62) saturate(1.3); }
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .large-title .brand + .chip-city { margin-left: auto; }
 .chip-city { font-size: calc(12px * var(--fs, 1)); padding: 5px 9px; white-space: nowrap; min-width: 0; max-width: 58%; gap: 3px; }
