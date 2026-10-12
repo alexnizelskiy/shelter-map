@@ -1,36 +1,29 @@
-# oporamap.ru через собственный nginx-прокси
+# Домены через собственный nginx-прокси (обход блокировки Vercel)
 
-Зачем: часть российских провайдеров нестабильно открывает Vercel. Прокси на российском сервере (тот же, что стоит перед единаясреда.рф) принимает запросы и пересылает их на Vercel.
+Зачем: часть российских провайдеров не открывает Vercel без VPN. Прокси на российском сервере принимает запросы и пересылает их на Vercel.
+Схема: посетитель → nginx на сервере (HTTPS, Let's Encrypt) → Vercel.
 
-Схема: посетитель → nginx на сервере (HTTPS, сертификат Let's Encrypt) → Vercel (проект «Опора»).
+Домены: `oporamap.ru` (+ `www`) и `kontent.единаясреда.рф`. Скрипт принимает любой список доменов, кириллицу переводит в punycode сам (`kontent.xn--80aakbcct4b2aj7m.xn--p1ai`), `www` создаёт только для корневых доменов.
 
-## Порядок действий (ничего не ломает работающие сайты)
+## Порядок (работающие сайты не затрагиваются)
+0. **Vercel:** каждый домен должен быть добавлен в свой проект (Settings → Domains): `oporamap.ru` и `www.oporamap.ru` в проект «Опора», `kontent.единаясреда.рф` в проект Content OS. «Invalid Configuration» после смены DNS на прокси — это нормально.
+1. **Диагностика сервера** (только чтение): команда из чата, вывод пришлите мне.
+2. **Установка прокси:** скопировать папку `deploy` на сервер и выполнить
+   `sudo bash deploy/setup-vercel-proxy.sh oporamap.ru kontent.единаясреда.рф`
+   Скрипт сам проверит конфиг (`nginx -t`), при ошибке откатит, и напечатает `PROXY_SECRET`.
+3. **Проверка до смены DNS:** `curl -sI --resolve oporamap.ru:80:46.19.64.31 http://oporamap.ru/`.
+4. **Vercel (проект «Опора»):** переменная `PROXY_SECRET` (значение из шага 2) + Redeploy. Без неё все посетители выглядят как один IP и ломаются лимиты и защита от накруток.
+5. **DNS:**
+   - `oporamap.ru`: у Timeweb A-запись → `46.19.64.31`; `www` → `CNAME oporamap.ru`.
+   - `kontent.единаясреда.рф`: DNS у **Cloudflare**; заменить CNAME на **A-запись → `46.19.64.31`**, режим «DNS only» (серое облако), чтобы HTTPS завершался на вашем сервере.
+6. **Сертификаты** (после обновления DNS):
+   `sudo bash deploy/setup-vercel-proxy.sh cert you@mail.ru oporamap.ru kontent.единаясреда.рф`
+7. **Проверка:** `https://oporamap.ru/api/health` → `"viaTrustedProxy": true`.
 
-1. **Vercel:** домен `oporamap.ru` должен быть добавлен в проект (Settings → Domains). Vercel будет показывать «Invalid Configuration», пока DNS указывает на прокси, это нормально.
-2. **Сервер:** скопируйте на него папку `deploy` и выполните от root
-   ```bash
-   sudo bash deploy/setup-oporamap-proxy.sh
-   ```
-   Скрипт добавляет отдельный файл `/etc/nginx/sites-available/oporamap.ru`, проверяет весь конфиг (`nginx -t`), при ошибке откатывает, иначе перезагружает nginx. В конце он печатает **PROXY_SECRET**.
-3. **Проверка до переключения DNS** (с вашего компьютера, `46.19.64.31` — IP прокси):
-   ```bash
-   curl -sI --resolve oporamap.ru:80:46.19.64.31 http://oporamap.ru/ | head -5
-   ```
-   Должен прийти ответ от приложения (200 или редирект на https).
-4. **Vercel:** добавьте переменную `PROXY_SECRET` (значение из шага 2) и сделайте Redeploy. Без неё все посетители будут выглядеть как один IP: сломаются лимиты, защита от накруток и счётчик попыток входа в админку.
-5. **DNS у Timeweb:** `A` для `oporamap.ru` → `46.19.64.31`, для `www` — `CNAME oporamap.ru` (или тоже `A` на этот IP).
-6. **Сертификат** (когда DNS обновился):
-   ```bash
-   sudo bash deploy/setup-oporamap-proxy.sh cert you@example.ru
-   ```
-7. **Проверка:** `https://oporamap.ru/api/health` — в ответе должно быть `"viaTrustedProxy": true` и `"proxySecretSet": true`.
+## Откат
+- Вернуть DNS на Vercel: `oporamap.ru` A → `216.198.79.1`, `kontent` CNAME → `33ea5c61688d377b.vercel-dns-017.com` (значения из Vercel).
+- Отключить домен на прокси: `sudo rm /etc/nginx/sites-enabled/vercel-proxy-ДОМЕН && sudo nginx -t && sudo systemctl reload nginx`.
 
-## Что меняется для приложения
-- IP посетителя берётся из заголовка `X-Opora-Client-IP`, подписанного `PROXY_SECRET`. Подделать снаружи его нельзя.
-- Автоопределение города по IP работает только на заголовках Vercel; за прокси они показывают IP прокси, поэтому определение города идёт по кнопке «По геопозиции». Чтобы определение по IP вернулось, на прокси нужен GeoIP-модуль nginx, который передаёт `X-Opora-Geo-Lat`, `X-Opora-Geo-Lng`, `X-Opora-Geo-Country` (приложение их уже понимает).
-- `NEXT_PUBLIC_SITE_URL` оставьте `https://oporamap.ru`.
-
-## Если что-то пошло не так
-- Вернуть DNS на Vercel (`A 216.198.79.1` или значение из Vercel) — сайт сразу откроется напрямую.
-- Отключить прокси: `sudo rm /etc/nginx/sites-enabled/oporamap.ru && sudo nginx -t && sudo systemctl reload nginx`.
-- Таймаут ответа прокси 65 секунд; если у существующего сайта на этом сервере лимит 10 секунд, на `oporamap.ru` он не действует.
+## Особенности
+- Таймаут ответа 65 с (маршруты, поиск, длинные запросы Content OS), буферизация выключена: страницы Next.js отдаются потоком.
+- Автоопределение города по IP за прокси не работает (Vercel видит IP прокси): остаётся кнопка «По геопозиции». Вернуть можно через GeoIP на nginx (заголовки `X-Opora-Geo-Lat/Lng/Country`).
