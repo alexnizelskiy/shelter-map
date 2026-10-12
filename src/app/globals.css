@@ -128,7 +128,7 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 /* ───────── Паспорт ───────── */
 .passport { position: absolute; z-index: 6; left: 416px; top: 12px; width: 360px; max-height: calc(100dvh - 24px); overflow: auto; padding: 16px; border-radius: 30px; }
 .passport::-webkit-scrollbar { width: 0; }
-.passport-head { display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+.passport-head { display: flex; align-items: center; gap: 12px; margin: -16px -16px 4px; padding: 16px 16px 10px; position: sticky; top: -16px; z-index: 3; border-radius: 30px 30px 0 0; background: color-mix(in srgb, var(--glass) 90%, transparent); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
 .passport-head h2 { margin: 0; font-size: calc(20px * var(--fs, 1)); flex: 1; }
 .icon-btn { width: 34px; height: 34px; display: inline-grid; place-items: center; border: 0; border-radius: 50%; background: var(--field); color: var(--muted); cursor: pointer; }
 .passport-addr { margin: 6px 4px 12px; font-size: calc(15px * var(--fs, 1)); color: var(--muted); }
@@ -524,10 +524,16 @@ h1, h2, h3 { letter-spacing: -0.02em; }
   .side[data-sheet] { top: max(10px, env(safe-area-inset-top)); max-height: none; }
   .panel[data-sheet] { flex: 1; max-height: none; padding-top: 0; }
   .panel[data-sheet][data-tab="chat"] { height: auto; max-height: none; }
-  .sheet-head { display: flex; flex: none; position: sticky; top: 0; z-index: 3; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 2px 10px; margin-bottom: 6px; border-radius: 22px; background: transparent; -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
+  .sheet-head { display: flex; flex: none; position: sticky; top: 0; z-index: 3; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 2px 10px; margin-bottom: 6px; border-radius: 22px; background: color-mix(in srgb, var(--glass) 90%, transparent); -webkit-backdrop-filter: blur(18px); backdrop-filter: blur(18px); }
   .sheet-head h2 { margin: 0; font-size: calc(24px * var(--fs, 1)); font-weight: 700; }
   .sheet-head .icon-btn.big { width: 40px; height: 40px; }
   .panel[data-tab="list"][data-sheet] .large-title, .panel[data-tab="settings"][data-sheet] .large-title { display: none; }
   .panel[data-search] .cs-bar .icon-btn.big { display: none; }
   .app[data-sheet] .controls, .app[data-sheet] .loc-prompt, .app[data-sheet] .offline-pill { display: none; }
+  /* карточка укрытия — тоже почти на весь экран, шапка закреплена */
+  .passport { top: max(10px, env(safe-area-inset-top)); bottom: 84px; max-height: none; padding-top: 0; }
+  .passport-head { margin: 0 -16px 4px; padding: 14px 16px 10px; top: 0; }
+  .passport-head h2 { font-size: calc(22px * var(--fs, 1)); }
+  .passport-head .icon-btn { width: 40px; height: 40px; }
+  .app[data-card] .controls, .app[data-card] .loc-prompt { display: none; }
 }

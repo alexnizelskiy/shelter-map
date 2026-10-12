@@ -257,7 +257,7 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
   const zoom = (d: number) => window.dispatchEvent(new CustomEvent("map-zoom", { detail: d }));
 
   return (
-    <div className={navActive ? "app navigating" : "app"} data-sheet={sheetOpen || undefined}>
+    <div className={navActive ? "app navigating" : "app"} data-sheet={sheetOpen || undefined} data-card={(current && !picking) || undefined}>
       <CityMap
         center={city.center} zoom={city.zoom} shelters={shelters} selectedId={selected} onSelect={pick} me={me} flagged={flagged}
         picking={picking} picked={draft.lat != null && draft.lng != null ? { lat: draft.lat, lng: draft.lng } : null} onPick={onMapPick}
@@ -523,6 +523,11 @@ function Passport({ citySlug, route, variantIdx, onVariant, onStartNav, routeBus
 
   return (
     <aside className={`passport glass ${hideOnNarrow ? "passport-hide" : ""}`}>
+      <div className="passport-head">
+        <span className={`ico ${cls}`}><HeadIcon size={20} /></span>
+        <h2>Паспорт укрытия</h2>
+        <button className="icon-btn" aria-label="Закрыть" onClick={onClose}><X size={18} /></button>
+      </div>
       {photos.length > 0 && (
         <div className="gallery">
           {photos.map((id) => (
@@ -533,11 +538,6 @@ function Passport({ citySlug, route, variantIdx, onVariant, onStartNav, routeBus
           ))}
         </div>
       )}
-      <div className="passport-head">
-        <span className={`ico ${cls}`}><HeadIcon size={20} /></span>
-        <h2>Паспорт укрытия</h2>
-        <button className="icon-btn" aria-label="Закрыть" onClick={onClose}><X size={18} /></button>
-      </div>
       <p className="passport-addr">{s.address}</p>
       <MyShelterButton s={s} citySlug={citySlug} />
 
