@@ -181,7 +181,7 @@ export default function ChatPanel({ room, cityName, returnPath, onPickCity, show
 
   if (!data.enabled) {
     return (
-      <div className="chat">
+      <div className="chat" data-shown={shown}>
         <ChatHead online={0} cityName={cityName} onPickCity={onPickCity} />
         <p className="note">{data.reason === "no_db" ? "Чат ещё не подключён: нет базы данных." : data.reason === "error" ? `Чат временно недоступен${data.code ? ` (код: ${data.code})` : ""}.` : "Чат временно отключён модератором."}</p>
       </div>
@@ -193,7 +193,7 @@ export default function ChatPanel({ room, cityName, returnPath, onPickCity, show
   const canLogin = p.yandex || p.vk || p.max || p.telegram || p.dev;
 
   return (
-    <div className="chat" onClick={() => { setActive(null); setPicker(null); }}>
+    <div className="chat" data-shown={shown} onClick={() => { setActive(null); setPicker(null); }}>
       <ChatHead online={data.online ?? 0} cityName={cityName} onPickCity={onPickCity} />
       {data.nextClearAt && (
         <p className="chat-clear"><Clock size={13} />Чат очищается раз в {data.clearHours === 24 ? "сутки" : data.clearHours === 48 ? "2 дня" : data.clearHours === 168 ? "неделю" : `${data.clearHours} ч`}. Ближайшая очистка: {new Date(data.nextClearAt).toLocaleString("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}</p>

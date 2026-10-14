@@ -572,3 +572,54 @@ h1, h2, h3 { letter-spacing: -0.02em; }
   .panel[data-sheet][data-tab="map"] .large-title { display: none; }
   .offline-pill { top: calc(max(10px, env(safe-area-inset-top)) + 54px); }
 }
+
+/* ───────── Анимации интерфейса (как в Telegram) ─────────
+ * Значения взяты из Telegram Web A: раздел въезжает со сдвигом на 1,5 rem и появлением за 300 мс, кривая cubic-bezier(.25, 1, .5, 1);
+ * слои (карточки, листы) — мягче и дольше, cubic-bezier(.22, 1, .36, 1). Направление зависит от порядка вкладок. */
+:root { --slide-t: 320ms cubic-bezier(.25, 1, .5, 1); --layer-t: 440ms cubic-bezier(.22, 1, .36, 1); --spring: cubic-bezier(.34, 1.45, .64, 1); }
+
+@keyframes view-in-fwd { from { opacity: 0; transform: translateX(1.5rem); } to { opacity: 1; transform: none; } }
+@keyframes view-in-back { from { opacity: 0; transform: translateX(-1.5rem); } to { opacity: 1; transform: none; } }
+@keyframes layer-in-side { from { opacity: 0; transform: translateX(-28px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes layer-in-up { from { opacity: 0; transform: translateY(40px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes pop-in { from { opacity: 0; transform: translateY(-10px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes row-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes dock-pop { 0% { transform: scale(1); } 40% { transform: scale(1.22); } 100% { transform: scale(1); } }
+
+/* содержимое раздела */
+.panel { overflow-x: clip; }
+.view { animation: view-in-fwd var(--slide-t) backwards; }
+.panel[data-dir="back"] .view { animation-name: view-in-back; }
+.chat[data-shown="true"] { animation: view-in-fwd var(--slide-t) backwards; }
+.panel[data-dir="back"] .chat[data-shown="true"] { animation-name: view-in-back; }
+
+/* список: строки появляются по очереди */
+.list li:nth-child(-n + 10) { animation: row-in 320ms cubic-bezier(.25, 1, .5, 1) backwards; } /* только первые строки: список бывает на тысячи точек */
+.list li:nth-child(2) { animation-delay: 25ms; } .list li:nth-child(3) { animation-delay: 50ms; } .list li:nth-child(4) { animation-delay: 75ms; }
+.list li:nth-child(5) { animation-delay: 100ms; } .list li:nth-child(6) { animation-delay: 125ms; } .list li:nth-child(7) { animation-delay: 150ms; }
+.list li:nth-child(n + 8) { animation-delay: 175ms; }
+
+/* карточка укрытия и окно подтверждения места */
+.passport { animation: layer-in-side var(--layer-t) backwards; transform-origin: left center; }
+.loc-prompt { animation: pop-in var(--layer-t) backwards; }
+
+/* нижнее меню: пилюля плавно переезжает на выбранную вкладку, значок «подпрыгивает» */
+.dock { position: relative; }
+.dock-tab { position: relative; z-index: 1; }
+.dock-tab.on { background: transparent; }
+.dock-pill { position: absolute; top: 5px; bottom: 5px; left: 5px; width: calc((100% - 18px) / 5); border-radius: 999px; background: var(--accent-soft); transform: translateX(calc(var(--i, 0) * (100% + 2px))); transition: transform 480ms var(--spring); pointer-events: none; }
+.dock-tab.on svg { animation: dock-pop 420ms var(--spring); }
+
+/* телефон: листы разделов выезжают снизу, карточка тоже */
+@media (max-width: 760px) {
+  .panel[data-sheet] { animation: layer-in-up var(--layer-t) backwards; }
+  .passport { animation-name: layer-in-up; transform-origin: center bottom; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .view, .chat[data-shown="true"], .list li:nth-child(-n + 10), .passport, .loc-prompt, .panel[data-sheet], .dock-tab.on svg { animation: none !important; }
+  .dock-pill { transition: none; }
+}
+
+.swap { display: inline-block; animation: view-in-fwd var(--slide-t) backwards; }
+@media (prefers-reduced-motion: reduce) { .swap { animation: none !important; } }

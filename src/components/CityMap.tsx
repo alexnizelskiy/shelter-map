@@ -10,6 +10,9 @@ import type { Shelter } from "@/lib/shelters";
 
 maplibregl.setWorkerUrl("/maplibre-gl-worker.mjs");
 
+// Точки других городов: фоновый слой, чтобы при отдалении были видны все объекты системы
+export type OtherPoint = { id: string; lat: number; lng: number; kind: string };
+
 type Props = {
   center: [number, number];
   zoom: number;
@@ -29,12 +32,14 @@ type Props = {
   navPos?: { lng: number; lat: number; heading: number | null } | null; // позиция в режиме навигатора
   follow?: boolean; // камера следует за стрелкой
   onUserMove?: () => void; // пользователь сам двинул карту
+  others?: OtherPoint[]; // точки остальных городов
+  onViewChange?: (v: { lng: number; lat: number; zoom: number }) => void; // карта остановилась в новом месте
 };
 
 const SRC = "shelters";
 const KIND_COLOR = ["case", ["==", ["get", "flag"], 1], "#e0a100", ["match", ["get", "kind"], "official_shelter", "#1f9d55", "other_shelter", "#1f9d55", "help_point", "#1b6ef3", "#8b93a1"]];
 
-export default function CityMap({ center, zoom, shelters, selectedId, onSelect, me, flagged, picking, picked, onPick, basemap, fit, route, fitRoute = true, alts, navPos, follow, onUserMove }: Props) {
+export default function CityMap({ center, zoom, shelters, selectedId, onSelect, me, flagged, picking, picked, onPick, basemap, fit, route, fitRoute = true, alts, navPos, follow, onUserMove, others, onViewChange }: Props) {
   const el = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const ready = useRef(false);
@@ -43,6 +48,8 @@ export default function CityMap({ center, zoom, shelters, selectedId, onSelect, 
   const fitKey = fit?.join(",") ?? "";
   const fitRef = useRef(fit);
   const onUserMoveRef = useRef(onUserMove);
+  const othersRef = useRef<OtherPoint[]>(others ?? []);
+  const onViewChangeRef = useRef(onViewChange);
   const arrow = useRef<maplibregl.Marker | null>(null);
   const navWas = useRef(false);
   const baseRef = useRef(basemap);
@@ -59,7 +66,9 @@ export default function CityMap({ center, zoom, shelters, selectedId, onSelect, 
     baseRef.current = basemap;
     fitRef.current = fit;
     onUserMoveRef.current = onUserMove;
-  }, [onSelect, shelters, flagged, picking, onPick, basemap, fit, onUserMove]);
+    othersRef.current = others ?? [];
+    onViewChangeRef.current = onViewChange;
+  }, [onSelect, shelters, flagged, picking, onPick, basemap, fit, onUserMove, others, onViewChange]);
 
   // инициализация карты, источника и слоёв
   useEffect(() => {
@@ -116,7 +125,7 @@ export default function CityMap({ center, zoom, shelters, selectedId, onSelect, 
         cluster: true,
         clusterRadius: 50,
         clusterMaxZoom: 15,
-        data: toGeoJSON(sheltersRef.current, flaggedRef.current),
+        data: toGeoJSON(sheltersRef.current, flaggedRef.current, othersRef.current),
       });
       m.addLayer({ id: "pts", type: "circle", source: SRC, filter: ["!", ["has", "point_count"]],
         paint: { "circle-radius": 7, "circle-color": KIND_COLOR as never, "circle-stroke-width": 2, "circle-stroke-color": "#fff" } });
@@ -134,6 +143,7 @@ export default function CityMap({ center, zoom, shelters, selectedId, onSelect, 
       m.on("render", syncClusters);
       m.on("dragstart", (e) => { if (e.originalEvent) onUserMoveRef.current?.(); });
       m.on("zoomstart", (e) => { if (e.originalEvent) onUserMoveRef.current?.(); });
+      m.on("moveend", () => { const c = m.getCenter(); onViewChangeRef.current?.({ lng: c.lng, lat: c.lat, zoom: m.getZoom() }); });
       ready.current = true;
     });
     return () => { ready.current = false; themeObserver.disconnect(); clusterMarkers.clear(); m.remove(); };
@@ -209,8 +219,8 @@ export default function CityMap({ center, zoom, shelters, selectedId, onSelect, 
   useEffect(() => {
     const m = map.current;
     if (!m || !ready.current) return;
-    (m.getSource(SRC) as maplibregl.GeoJSONSource | undefined)?.setData(toGeoJSON(shelters, new Set(flagged ?? [])));
-  }, [flagged, shelters]);
+    (m.getSource(SRC) as maplibregl.GeoJSONSource | undefined)?.setData(toGeoJSON(shelters, new Set(flagged ?? []), others ?? []));
+  }, [flagged, shelters, others]);
 
   // режим выбора точки и выбранная точка новой заявки
   useEffect(() => {
@@ -264,13 +274,20 @@ function addBase(m: maplibregl.Map, b: Basemap, before?: string) {
   m.addLayer({ id: "base", type: "raster", source: "base" }, before);
 }
 
-function toGeoJSON(list: Shelter[], flagged: Set<string>): GeoJSON.FeatureCollection {
+function toGeoJSON(list: Shelter[], flagged: Set<string>, others: OtherPoint[]): GeoJSON.FeatureCollection {
   return {
     type: "FeatureCollection",
-    features: list.map((s) => ({
-      type: "Feature",
-      geometry: { type: "Point", coordinates: [s.lng, s.lat] },
-      properties: { id: s.id, kind: s.kind, flag: flagged.has(s.id) ? 1 : 0 },
-    })),
+    features: [
+      ...list.map((s): GeoJSON.Feature => ({
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [s.lng, s.lat] },
+        properties: { id: s.id, kind: s.kind, flag: flagged.has(s.id) ? 1 : 0 },
+      })),
+      ...others.map((o): GeoJSON.Feature => ({
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [o.lng, o.lat] },
+        properties: { id: o.id, kind: o.kind, flag: 0 },
+      })),
+    ],
   };
 }

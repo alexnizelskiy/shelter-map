@@ -37,3 +37,6 @@ export function distanceKm(aLat: number, aLng: number, bLat: number, bLng: numbe
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(aLat * r) * Math.cos(bLat * r) * Math.sin(dLng / 2) ** 2;
   return 12742 * Math.asin(Math.sqrt(h));
 }
+
+// Лёгкий список точек всех городов для фонового слоя карты: p = [id, lat, lng, индекс вида в k, индекс города в slugs]
+export type MapPoints = { slugs: string[]; k: string[]; p: [string, number, number, number, number][] };

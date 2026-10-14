@@ -10,7 +10,8 @@ import {
   Users, X, Clock, Ruler, Info, ChevronDown, Car, Camera, Smartphone, WifiOff, Siren, Accessibility, PawPrint, MessageCircle, Volume2, VolumeX, ArrowUp, ArrowUpLeft, ArrowUpRight, CornerUpLeft, CornerUpRight, Undo2, RotateCw, Flag, Footprints, ListOrdered, type LucideIcon,
 } from "lucide-react";
 import { compressImage } from "@/lib/image";
-import { KIND_LABEL, distanceKm, fmtDate, type Shelter } from "@/lib/shelters";
+import { KIND_LABEL, distanceKm, fmtDate, type MapPoints, type Shelter } from "@/lib/shelters";
+import { cityAt } from "@/lib/map-city";
 import type { City } from "@/lib/cities";
 import { REPORT_KINDS, REPORT_LABEL, REPORT_TTL_HOURS, WARN_THRESHOLD, flaggedIds, type ReportKind, type ReportSummary } from "@/lib/reports";
 import SuggestForm, { EMPTY_DRAFT, type Draft } from "./SuggestForm";
@@ -94,7 +95,12 @@ const ShelterRow = memo(function ShelterRow({ s, active, warn, dist, onPick }: {
   );
 });
 
-export default function CityView({ city, shelters }: { city: City; shelters: Shelter[] }) {
+export default function CityView({ city: city0, shelters: shelters0 }: { city: City; shelters: Shelter[] }) {
+  // Текущий город «живой»: если карту переместили в область другого города, он подгружается и становится текущим (см. onViewChange).
+  // Пока ничего не менялось, берём данные страницы: они обновляются тихо, после открытия из копии.
+  const [switched, setSwitched] = useState<{ city: City; shelters: Shelter[] } | null>(null);
+  const city = switched?.city ?? city0;
+  const shelters = switched?.shelters ?? shelters0;
   const [tab, setTab] = useState<Tab>("map");
   const [selected, setSelected] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -118,6 +124,10 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
   const sheetOpen = searchOpen || infoOpen || tab !== "map"; // на телефоне такие разделы открываются почти на весь экран
   const [chatSeen, setChatSeen] = useState(false); // чат, однажды открытый, остаётся в памяти: при возврате не грузится заново
   if (tab === "chat" && !chatSeen) setChatSeen(true);
+  // направление анимации переключения разделов (как в Telegram): новый раздел въезжает справа, если он правее прежнего, иначе слева
+  const [prevTab, setPrevTab] = useState<Tab>(tab);
+  const [dir, setDir] = useState<"fwd" | "back">("fwd");
+  if (tab !== prevTab) { setDir(TABS.findIndex((x) => x.key === tab) > TABS.findIndex((x) => x.key === prevTab) ? "fwd" : "back"); setPrevTab(tab); }
   const [route, setRoute] = useState<RouteInfo | null>(null);
   const [variantIdx, setVariantIdx] = useState(0);
   const [navActive, setNavActive] = useState(false);
@@ -159,7 +169,68 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
     setTab("suggest");
   }, []);
 
-  const pick = useCallback((id: string) => { setSelected(id); setRoute(null); setNavActive(false); setRouteError(null); }, []);
+  // ───── карта и города ─────
+  // Фоновый слой: точки всех городов (≈150 КБ, грузятся один раз в фоне). При отдалении видны все объекты системы.
+  const [pts, setPts] = useState<MapPoints | null>(null);
+  const ptsRef = useRef<MapPoints | null>(null);
+  useEffect(() => { ptsRef.current = pts; }, [pts]);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      fetch("/api/map-points").then((r) => (r.ok ? r.json() : null)).then((j) => { if (j) setPts(j as MapPoints); }).catch(() => {});
+    }, 1200);
+    return () => clearTimeout(t);
+  }, []);
+  const others = useMemo(
+    () => (pts ? pts.p.filter((x) => pts.slugs[x[4]] !== city.slug).map((x) => ({ id: x[0], lat: x[1], lng: x[2], kind: pts.k[x[3]] })) : []),
+    [pts, city.slug],
+  );
+
+  const wanted = useRef("");
+  const switchTo = useCallback(async (slug: string, selectId?: string) => {
+    if (slug === city.slug) { if (selectId) setSelected(selectId); return; }
+    wanted.current = slug;
+    let next: { city: City; shelters: Shelter[] } | null = null;
+    if (slug !== city0.slug) {
+      try {
+        const r = await fetch(`/api/city-data?slug=${encodeURIComponent(slug)}`);
+        if (!r.ok) return;
+        const j = await r.json();
+        next = { city: j.city, shelters: j.shelters };
+      } catch { return; }
+    }
+    if (wanted.current !== slug) return; // карту уже увели в другое место
+    setSwitched(next);
+    setSelected(selectId ?? null); setRoute(null); setNavActive(false); setRouteError(null);
+    setQuery(""); setFStep(false); setFPets(false); setReports([]);
+    window.history.replaceState(window.history.state, "", `/${slug}`); // адрес показывает текущий город, перезагрузка откроет его
+    document.title = `Укрытия — ${(next?.city ?? city0).name} | Опора`;
+  }, [city.slug, city0]);
+
+  // Карта остановилась: если центр в области другого города, переключаемся на него. Не трогаем, пока открыта карточка, маршрут, навигатор или выбор точки.
+  const guard = useRef({ busy: false, slug: city.slug });
+  useEffect(() => { guard.current = { busy: navActive || picking || !!selected || !!route, slug: city.slug }; }, [navActive, picking, selected, route, city.slug]);
+  const viewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (viewTimer.current) clearTimeout(viewTimer.current); }, []);
+  const onViewChange = useCallback((v: { lng: number; lat: number; zoom: number }) => {
+    if (viewTimer.current) clearTimeout(viewTimer.current);
+    viewTimer.current = setTimeout(() => {
+      const all = ptsRef.current;
+      if (!all || v.zoom < 8.5 || guard.current.busy) return;
+      const target = cityAt(all, v.lng, v.lat, guard.current.slug);
+      if (target) switchTo(target);
+    }, 600);
+  }, [switchTo]);
+
+  const pick = useCallback((id: string) => {
+    if (!shelters.some((x) => x.id === id)) {
+      // точка другого города: переключаемся на него и открываем её
+      const all = ptsRef.current;
+      const q = all?.p.find((x) => x[0] === id);
+      if (all && q) switchTo(all.slugs[q[4]], id);
+      return;
+    }
+    setSelected(id); setRoute(null); setNavActive(false); setRouteError(null);
+  }, [shelters, switchTo]);
   const pickFromList = useCallback((id: string) => { setSelected(id); setRoute(null); setNavActive(false); setRouteError(null); if (isNarrow()) setTab("map"); }, []);
 
   const byDistance = useCallback(
@@ -273,9 +344,9 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
   return (
     <div className={navActive ? "app navigating" : "app"} data-sheet={sheetOpen || undefined} data-card={(current && !picking) || undefined}>
       <CityMap
-        center={city.center} zoom={city.zoom} shelters={shelters} selectedId={selected} onSelect={pick} me={me} flagged={flagged}
+        center={city0.center} zoom={city0.zoom} shelters={shelters} selectedId={selected} onSelect={pick} me={me} flagged={flagged} others={others} onViewChange={onViewChange}
         picking={picking} picked={draft.lat != null && draft.lng != null ? { lat: draft.lat, lng: draft.lng } : null} onPick={onMapPick}
-        basemap={basemap} fit={city.fit} route={nav ? nav.line : variant?.coords ?? null} fitRoute={!navActive}
+        basemap={basemap} fit={city0.fit} route={nav ? nav.line : variant?.coords ?? null} fitRoute={!navActive}
         alts={route && !navActive ? route.variants.filter((_, i) => i !== variantIdx).map((v) => v.coords) : []}
         navPos={nav ? { lng: nav.pos[0], lat: nav.pos[1], heading: nav.heading } : null} follow={navActive && follow} onUserMove={() => { if (navActive) setFollow(false); }}
       />
@@ -294,7 +365,7 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
       {!sheetOpen && !navActive && !picking && !current && (
         <div className="map-bar">
           <button className="map-chip glass" onClick={() => setSearchOpen(true)} aria-label={`Город: ${city.name}. Сменить город`}>
-            <MapPin size={16} /><span className="map-chip-name">{city.name}</span><ChevronDown size={15} />
+            <MapPin size={16} /><span key={city.slug} className="map-chip-name swap">{city.name}</span><ChevronDown size={15} />
           </button>
           <button className="map-info glass" onClick={() => setInfoOpen(true)} aria-label="О карте и источниках данных"><Info size={20} /></button>
         </div>
@@ -303,20 +374,26 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
       <LocationPrompt current={city.slug} currentName={city.name} onChooseOther={() => setSearchOpen(true)} />
 
       <aside className="side" data-sheet={sheetOpen || undefined}>
-        <section className="panel glass" data-tab={tab} data-search={searchOpen || undefined} data-sheet={sheetOpen || undefined} data-info={infoOpen || undefined}>
+        <section className="panel glass" data-tab={tab} data-search={searchOpen || undefined} data-sheet={sheetOpen || undefined} data-info={infoOpen || undefined} data-dir={dir}>
           {sheetOpen && (
             <div className="sheet-head">
               <h2>{searchOpen ? "Выбор города" : tab === "map" ? "О карте" : TABS.find((t) => t.key === tab)?.label}</h2>
               <button className="icon-btn big" aria-label="Закрыть" onClick={() => { if (searchOpen) setSearchOpen(false); else if (tab === "map") setInfoOpen(false); else setTab("map"); }}><X size={20} /></button>
             </div>
           )}
+          {(chatSeen || tab === "chat") && (
+            <div style={{ display: !searchOpen && tab === "chat" ? "contents" : "none" }}>
+              <ChatPanel key={city.slug} room={city.slug} cityName={city.name} returnPath={`/${city.slug}`} onPickCity={() => setSearchOpen(true)} shown={!searchOpen && tab === "chat"} />
+            </div>
+          )}
+          <div className="view" key={searchOpen ? "search" : tab === "map" ? (infoOpen ? "info" : "map") : tab}>
           {searchOpen && <CitySearch current={city.slug} onClose={() => setSearchOpen(false)} />}
 
           {!searchOpen && tab === "map" && (
             <>
               <div className="large-title">
                 <h1 className="brand"><BrandLogo height={38} /><span className="sr-only">Опора — карта укрытий</span></h1>
-                <button className="chip-city btn-like" onClick={() => setSearchOpen(true)} aria-label="Выбрать город"><MapPin size={14} /><span className="chip-name">{city.name}</span><ChevronDown size={14} /></button>
+                <button className="chip-city btn-like" onClick={() => setSearchOpen(true)} aria-label="Выбрать город"><MapPin size={14} /><span key={city.slug} className="chip-name swap">{city.name}</span><ChevronDown size={14} /></button>
               </div>
               <button className="primary" onClick={locate}><Navigation size={18} />Найти ближайшее</button>
               <Link href="/alarm" className="alarm-btn"><Siren size={20} />Режим «Тревога»</Link>
@@ -385,11 +462,6 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
             </>
           )}
 
-          {(chatSeen || tab === "chat") && (
-            <div style={{ display: !searchOpen && tab === "chat" ? "contents" : "none" }}>
-              <ChatPanel room={city.slug} cityName={city.name} returnPath={`/${city.slug}`} onPickCity={() => setSearchOpen(true)} shown={!searchOpen && tab === "chat"} />
-            </div>
-          )}
 
           {!searchOpen && tab === "suggest" && (
             <SuggestForm citySlug={city.slug} draft={draft} setDraft={setDraft} onPickOnMap={() => { setPicking(true); setTab("map"); }} />
@@ -420,9 +492,11 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
               </div>
             </div>
           )}
+          </div>
         </section>
 
         <nav className="dock glass" aria-label="Разделы">
+          <span className="dock-pill" style={{ "--i": TABS.findIndex((x) => x.key === tab) } as React.CSSProperties} aria-hidden="true" />
           {TABS.map(({ key, label, Icon }) => (
             <button key={key} className={tab === key ? "dock-tab on" : "dock-tab"} onClick={() => { setTab(key); setInfoOpen(false); }} aria-current={tab === key}>
               <Icon size={21} strokeWidth={2} />

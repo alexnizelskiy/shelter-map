@@ -1,7 +1,8 @@
 import { connection } from "next/server";
-import type { Shelter, Tri } from "./shelters";
+import type { MapPoints, Shelter, Tri } from "./shelters";
 import { getShelters } from "./shelters-data";
 import { CITIES } from "./cities";
+import { loadCities } from "./cities-server";
 import { SUGGEST_KIND_LABEL, type SuggestKind } from "./reports";
 import { dbConfigured, ensureSchema, sql } from "./db";
 
@@ -50,3 +51,33 @@ async function load(citySlug: string | null, opts: { includeHidden?: boolean }):
 
 export const loadShelters = (citySlug: string, opts: { includeHidden?: boolean } = {}) => load(citySlug, opts);
 export const loadAllShelters = (opts: { includeHidden?: boolean } = {}) => load(null, opts);
+
+// Лёгкий список точек всех городов для карты: при отдалении видны все объекты системы, при перемещении в другую область подгружается её город.
+// Короткие массивы вместо объектов: ~4 тыс. точек занимают около 150 КБ (≈40 КБ в сжатом виде).
+export async function loadMapPoints(): Promise<MapPoints> {
+  await connection();
+  const cities = await loadCities();
+  const slugs = cities.map((c) => c.slug);
+  const sIdx = new Map(slugs.map((s, i) => [s, i]));
+  const kinds: string[] = [];
+  const kIdx = (k: string) => { let i = kinds.indexOf(k); if (i < 0) { i = kinds.length; kinds.push(k); } return i; };
+  const p: MapPoints["p"] = [];
+  for (const c of CITIES) for (const s of getShelters(c.slug)) p.push([s.id, s.lat, s.lng, kIdx(s.kind), sIdx.get(c.slug) ?? 0]);
+  if (!dbConfigured()) return { slugs, k: kinds, p };
+  try {
+    await ensureSchema();
+    const [pub, hid] = await Promise.all([
+      sql()<{ id: string; kind: string; lat: number; lng: number; city_slug: string }[]>`SELECT id::text, kind, lat, lng, city_slug FROM published_shelters ORDER BY id`,
+      sql()<{ shelter_id: string }[]>`SELECT shelter_id FROM shelter_overrides WHERE hidden`,
+    ]);
+    const hidden = new Set(hid.map((h) => h.shelter_id));
+    for (const r of pub) {
+      const ci = sIdx.get(r.city_slug);
+      if (ci !== undefined && !hidden.has(`usr-${r.id}`)) p.push([`usr-${r.id}`, r.lat, r.lng, kIdx(r.kind), ci]);
+    }
+    return { slugs, k: kinds, p: p.filter((x) => !hidden.has(x[0])) };
+  } catch (e) {
+    console.error("loadMapPoints", e);
+    return { slugs, k: kinds, p };
+  }
+}

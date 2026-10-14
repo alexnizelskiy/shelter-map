@@ -36,6 +36,7 @@ const ROUTES = {
   "/offline": () => new Response("<html>offline</html>", { status: 200 }),
   "/rostov-na-donu": () => new Response("<html>city</html>", { status: 200 }),
   "/api/shelters": () => Response.json({ shelters: [1, 2, 3] }),
+  "/api/map-points": () => Response.json({ p: [1, 2] }),
   "/_next/static/chunks/alarm.js": () => new Response("js", { status: 200 }),
   "/_next/static/css/a.css": () => new Response("css", { status: 200 }),
   "/_next/static/chunks/other.js": () => new Response("other", { status: 200 }),
@@ -113,6 +114,12 @@ await doFetch("/api/shelters?city=rostov-na-donu");
 online = false;
 r = await doFetch("/api/shelters?city=rostov-na-donu");
 t("список укрытий доступен офлайн после первого запроса", r.status === 200 && r.body.includes("shelters"));
+
+online = true;
+await doFetch("/api/map-points");
+online = false;
+r = await doFetch("/api/map-points");
+t("точки всех городов для карты доступны офлайн", r.status === 200 && r.body.includes('"p"'));
 
 // 6) то, что нельзя трогать
 for (const p of ["/admin", "/admin?tab=chat", "/api/chat/messages?room=x", "/api/auth/dev", "/api/photos/1"]) {

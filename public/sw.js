@@ -73,7 +73,7 @@ self.addEventListener("fetch", (event) => {
   }
 
   // список укрытий для офлайна
-  if (p === "/api/shelters") {
+  if (p === "/api/shelters" || p === "/api/map-points") {
     event.respondWith(networkFirst(req, DATA, 5000));
     return;
   }
