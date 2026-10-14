@@ -198,7 +198,7 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 @media (max-width: 760px) {
   .side { left: 8px; right: 8px; top: auto; bottom: 8px; width: auto; max-height: calc(100dvh - 16px); }
   .panel { flex: none; max-height: 56dvh; border-radius: 26px; }
-  .panel[data-tab="map"] { display: none; }
+  .panel[data-tab="map"]:not([data-info]) { display: none; }
   .passport { left: 8px; right: 8px; top: auto; bottom: 84px; width: auto; max-height: 62dvh; }
   .passport-hide { display: none; }
   .controls { bottom: 96px; right: 8px; }
@@ -559,3 +559,16 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .more-places { margin-top: 18px; }
 .more-places summary { cursor: pointer; padding: 12px 4px; font-weight: 600; color: var(--muted); font-size: calc(15px * var(--fs, 1)); }
 .more-places ul { margin-top: 6px; }
+
+/* ───────── Телефон: верхняя панель карты (город и «О карте») ───────── */
+.map-bar { display: none; }
+@media (max-width: 760px) {
+  .map-bar { display: flex; position: absolute; z-index: 5; top: max(10px, env(safe-area-inset-top)); left: 8px; right: 8px; justify-content: space-between; gap: 8px; pointer-events: none; }
+  .map-bar > * { pointer-events: auto; }
+  .map-chip { display: inline-flex; align-items: center; gap: 6px; max-width: calc(100% - 56px); padding: 10px 14px; border-radius: 999px; color: var(--fg); font: inherit; font-weight: 600; font-size: calc(15px * var(--fs, 1)); cursor: pointer; }
+  .map-chip svg { flex: none; color: var(--accent); }
+  .map-chip-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .map-info { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; color: var(--fg); cursor: pointer; }
+  .panel[data-sheet][data-tab="map"] .large-title { display: none; }
+  .offline-pill { top: calc(max(10px, env(safe-area-inset-top)) + 54px); }
+}

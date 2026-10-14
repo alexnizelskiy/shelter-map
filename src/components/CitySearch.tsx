@@ -10,6 +10,7 @@ export type PlaceResult = { id: number; name: string; region: string; lat: numbe
 type Recent = { slug: string; name: string; region: string };
 
 export const CHOICE_KEY = "city-choice";
+export const CONFIRMED_KEY = "loc-confirmed"; // человек уже ответил на вопрос о городе: больше не спрашиваем
 
 export function useRecent() {
   const [raw, setRaw] = usePref("recent-places", "[]");
@@ -25,6 +26,7 @@ export default function CitySearch({ onClose, current, hideClose }: { onClose: (
   const [data, setData] = useState<{ q: string; list: PlaceResult[] } | null>(null);
   const recent = useRecent();
   const [, setChoice] = usePref(CHOICE_KEY, "");
+  const [, setConfirmed] = usePref(CONFIRMED_KEY, "");
   const input = useRef<HTMLInputElement>(null);
 
   useEffect(() => { input.current?.focus(); }, []);
@@ -50,6 +52,7 @@ export default function CitySearch({ onClose, current, hideClose }: { onClose: (
   const go = (r: { slug: string; name: string; region: string }) => {
     recent.add(r);
     setChoice(r.slug);
+    setConfirmed("1");
     onClose();
     if (r.slug !== current) router.push(`/${r.slug}`);
   };

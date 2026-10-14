@@ -1,8 +1,9 @@
 "use client";
 
-import { memo, useSyncExternalStore, useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { memo, startTransition, useSyncExternalStore, useEffect, useMemo, useRef, useState, useCallback } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Building2, CalendarDays, ChevronRight, CircleAlert, DoorClosed, DoorOpen, Heart, Layers, LayoutGrid, Link2, List, LocateFixed,
   Map as MapIcon, MapPin, MapPinPlus, Minus, Navigation, Palette, Plus, Route, Search, SearchX, Settings, ShieldCheck, TriangleAlert,
@@ -113,7 +114,10 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
   const basemap = getBasemap(bmId);
   const [layersOpen, setLayersOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
-  const sheetOpen = searchOpen || tab !== "map"; // на телефоне такие разделы открываются почти на весь экран
+  const [infoOpen, setInfoOpen] = useState(false); // «О карте»: на телефоне открывается разделом на весь экран, как на компьютере
+  const sheetOpen = searchOpen || infoOpen || tab !== "map"; // на телефоне такие разделы открываются почти на весь экран
+  const [chatSeen, setChatSeen] = useState(false); // чат, однажды открытый, остаётся в памяти: при возврате не грузится заново
+  if (tab === "chat" && !chatSeen) setChatSeen(true);
   const [route, setRoute] = useState<RouteInfo | null>(null);
   const [variantIdx, setVariantIdx] = useState(0);
   const [navActive, setNavActive] = useState(false);
@@ -128,6 +132,15 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
     const t = setTimeout(() => setTab("chat"), 0);
     return () => clearTimeout(t);
   }, []);
+
+  // Страница открылась сразу из сохранённой копии (service worker): тихо подтягиваем свежие данные, не перезагружая интерфейс
+  const router = useRouter();
+  useEffect(() => {
+    const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+    if (!nav?.serverTiming?.some((x) => x.name === "sw-cache") || !navigator.onLine) return;
+    const t = setTimeout(() => startTransition(() => router.refresh()), 1200);
+    return () => clearTimeout(t);
+  }, [router]);
 
   const loadReports = useCallback(() => {
     fetch(`/api/reports?city=${city.slug}`)
@@ -171,6 +184,7 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
 
   const locate = () => {
     setGeoError(false);
+    setInfoOpen(false);
     navigator.geolocation.getCurrentPosition(
       (p) => {
         const pos = { lat: p.coords.latitude, lng: p.coords.longitude };
@@ -277,14 +291,23 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
         <Link href="/alarm" className="offline-pill glass"><WifiOff size={16} />Нет сети: карта может не загрузиться. Откройте режим «Тревога»</Link>
       )}
 
-      <LocationPrompt current={city.slug} onChooseOther={() => setSearchOpen(true)} />
+      {!sheetOpen && !navActive && !picking && !current && (
+        <div className="map-bar">
+          <button className="map-chip glass" onClick={() => setSearchOpen(true)} aria-label={`Город: ${city.name}. Сменить город`}>
+            <MapPin size={16} /><span className="map-chip-name">{city.name}</span><ChevronDown size={15} />
+          </button>
+          <button className="map-info glass" onClick={() => setInfoOpen(true)} aria-label="О карте и источниках данных"><Info size={20} /></button>
+        </div>
+      )}
+
+      <LocationPrompt current={city.slug} currentName={city.name} onChooseOther={() => setSearchOpen(true)} />
 
       <aside className="side" data-sheet={sheetOpen || undefined}>
-        <section className="panel glass" data-tab={tab} data-search={searchOpen || undefined} data-sheet={sheetOpen || undefined}>
+        <section className="panel glass" data-tab={tab} data-search={searchOpen || undefined} data-sheet={sheetOpen || undefined} data-info={infoOpen || undefined}>
           {sheetOpen && (
             <div className="sheet-head">
-              <h2>{searchOpen ? "Выбор города" : TABS.find((t) => t.key === tab)?.label}</h2>
-              <button className="icon-btn big" aria-label="Закрыть" onClick={() => { if (searchOpen) setSearchOpen(false); else setTab("map"); }}><X size={20} /></button>
+              <h2>{searchOpen ? "Выбор города" : tab === "map" ? "О карте" : TABS.find((t) => t.key === tab)?.label}</h2>
+              <button className="icon-btn big" aria-label="Закрыть" onClick={() => { if (searchOpen) setSearchOpen(false); else if (tab === "map") setInfoOpen(false); else setTab("map"); }}><X size={20} /></button>
             </div>
           )}
           {searchOpen && <CitySearch current={city.slug} onClose={() => setSearchOpen(false)} />}
@@ -362,8 +385,10 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
             </>
           )}
 
-          {!searchOpen && tab === "chat" && (
-            <ChatPanel room={city.slug} cityName={city.name} returnPath={`/${city.slug}`} onPickCity={() => setSearchOpen(true)} />
+          {(chatSeen || tab === "chat") && (
+            <div style={{ display: !searchOpen && tab === "chat" ? "contents" : "none" }}>
+              <ChatPanel room={city.slug} cityName={city.name} returnPath={`/${city.slug}`} onPickCity={() => setSearchOpen(true)} shown={!searchOpen && tab === "chat"} />
+            </div>
           )}
 
           {!searchOpen && tab === "suggest" && (
@@ -399,7 +424,7 @@ export default function CityView({ city, shelters }: { city: City; shelters: She
 
         <nav className="dock glass" aria-label="Разделы">
           {TABS.map(({ key, label, Icon }) => (
-            <button key={key} className={tab === key ? "dock-tab on" : "dock-tab"} onClick={() => setTab(key)} aria-current={tab === key}>
+            <button key={key} className={tab === key ? "dock-tab on" : "dock-tab"} onClick={() => { setTab(key); setInfoOpen(false); }} aria-current={tab === key}>
               <Icon size={21} strokeWidth={2} />
               <span>{label}</span>
             </button>

@@ -1,5 +1,5 @@
 /* Service worker сервиса «Опора — карта укрытий».
- * Что кэшируется: оболочка приложения (_next/static), открытые страницы, список укрытий города (/api/shelters).
+ * Что кэшируется: оболочка приложения (_next/static), открытые страницы (отдаются сразу и обновляются в фоне), список укрытий города (/api/shelters).
  * Чего НЕ кэшируется: тайлы карт сторонних сервисов (запрещено их условиями), админка, чат, маршруты, поиск мест.
  */
 const V = new URL(self.location).searchParams.get("v") || "dev";
@@ -81,13 +81,24 @@ self.addEventListener("fetch", (event) => {
   // остальные API (поиск, маршруты, отметки) — только сеть
   if (p.startsWith("/api/")) return;
 
-  // страницы: сначала сеть (до 4 секунд), без неё — сохранённая копия, затем страница «Нет сети»
+  // страницы: сначала отдаём сохранённую копию (интерфейс открывается сразу, без загрузки) и обновляем её в фоне;
+  // если копии ещё нет — сеть (до 4 секунд), без сети — страница «Нет сети». Новые данные страница подтягивает сама (см. CityView).
   if (req.mode === "navigate") {
     event.respondWith((async () => {
+      const cache = await caches.open(PAGES);
+      const key = new Request(url.origin + p); // ключ без query: ?go=…, ?chat=1 и т. п. не плодят копии
+      const hit = await cache.match(key, { ignoreSearch: true });
+      const fresh = fetch(req).then((res) => { if (res && res.ok && !res.redirected) cache.put(key, res.clone()); return res; });
+      if (hit) {
+        event.waitUntil(fresh.catch(() => {}));
+        // пометка для страницы: она открыта из копии и после загрузки обновит данные
+        const headers = new Headers(hit.headers);
+        headers.set("Server-Timing", "sw-cache");
+        return new Response(hit.body, { status: hit.status, statusText: hit.statusText, headers });
+      }
       try {
-        return await networkFirst(req, PAGES, 4000);
+        return await Promise.race([fresh, timeout(4000)]);
       } catch (_) {
-        const cache = await caches.open(PAGES);
         return (await cache.match("/offline")) || new Response("Нет сети", { status: 503, headers: { "Content-Type": "text/plain; charset=utf-8" } });
       }
     })());

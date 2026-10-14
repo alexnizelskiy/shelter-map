@@ -46,7 +46,7 @@ const loadScript = (src: string, onLoad: () => void) => {
   document.head.appendChild(s);
 };
 
-export default function ChatPanel({ room, cityName, returnPath, onPickCity }: { room: string; cityName: string; returnPath: string; onPickCity: () => void }) {
+export default function ChatPanel({ room, cityName, returnPath, onPickCity, shown = true }: { room: string; cityName: string; returnPath: string; onPickCity: () => void; shown?: boolean }) {
   const [data, setData] = useState<Data | null>(null);
   const [text, setText] = useState("");
   const [reply, setReply] = useState<Msg | null>(null);
@@ -72,12 +72,16 @@ export default function ChatPanel({ room, cityName, returnPath, onPickCity }: { 
     } catch {}
   }, [room]);
 
-  // опрос раз в 4 секунды, пока вкладка видна
+  // опрос раз в 4 секунды, пока вкладка видна и открыт сам чат. Чат остаётся в памяти при переходе в другие разделы:
+  // при возврате сообщения уже на месте, сразу подгружаются только новые.
+  const shownRef = useRef(shown);
+  useEffect(() => { shownRef.current = shown; }, [shown]);
   useEffect(() => {
     const first = setTimeout(load, 0);
-    const id = setInterval(() => { if (document.visibilityState === "visible") load(); }, 4000);
+    const id = setInterval(() => { if (document.visibilityState === "visible" && shownRef.current) load(); }, 4000);
     return () => { clearTimeout(first); clearInterval(id); };
   }, [load]);
+  useEffect(() => { if (!shown) return; const t = setTimeout(load, 0); return () => clearTimeout(t); }, [shown, load]); // вернулись в чат: сразу подгружаем новое
 
   // мини-приложения: подключаем мосты Telegram и MAX и ищем initData
   useEffect(() => {

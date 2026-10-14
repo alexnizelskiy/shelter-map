@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import Link from "next/link";
+import CityLink from "@/components/CityLink";
 import { loadCities } from "@/lib/cities-server";
 import HomeSearch from "@/components/HomeSearch";
 import BrandLogo from "@/components/BrandLogo";
@@ -14,7 +14,7 @@ async function Cities() {
       <h2>Города с данными</h2>
       <ul>
         {main.map((c) => (
-          <li key={c.slug}><Link href={`/${c.slug}`}>{c.name}</Link></li>
+          <li key={c.slug}><CityLink slug={c.slug}>{c.name}</CityLink></li>
         ))}
       </ul>
       {rest.length > 0 && (
@@ -22,7 +22,7 @@ async function Cities() {
           <summary>Другие населённые пункты ({rest.length})</summary>
           <ul>
             {rest.map((c) => (
-              <li key={c.slug}><Link href={`/${c.slug}`}>{c.name}</Link></li>
+              <li key={c.slug}><CityLink slug={c.slug}>{c.name}</CityLink></li>
             ))}
           </ul>
         </details>

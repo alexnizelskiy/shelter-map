@@ -1,5 +1,5 @@
 import { headers } from "next/headers";
-import { json, readJson } from "@/lib/api-utils";
+import { readJson } from "@/lib/api-utils";
 import { dbConfigured } from "@/lib/db";
 import { isBotUa, recordHit } from "@/lib/analytics";
 

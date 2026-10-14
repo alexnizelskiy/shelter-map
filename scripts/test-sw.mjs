@@ -56,16 +56,17 @@ const self = {
   skipWaiting: async () => {},
   clients: { claim: async () => {} },
 };
-vm.runInNewContext(readFileSync("public/sw.js", "utf8"), { self, caches: cachesImpl, fetch: fetchImpl, URL, Request, Response, Promise, setTimeout, clearTimeout, Set, Error }, { filename: "sw.js" });
+vm.runInNewContext(readFileSync("public/sw.js", "utf8"), { self, caches: cachesImpl, fetch: fetchImpl, URL, Request, Response, Headers, Promise, setTimeout, clearTimeout, Set, Error, TypeError }, { filename: "sw.js" });
 
 const lifecycle = async (type) => { let p; handlers[type]({ waitUntil: (x) => { p = x; } }); await p; };
 const doFetch = async (path, { mode = "cors", method = "GET", origin = "http://localhost:3000" } = {}) => {
   const request = Object.assign(new Request(origin + path, { method }), {});
   Object.defineProperty(request, "mode", { value: mode });
   let responded = null;
-  handlers.fetch({ request, respondWith: (p) => { responded = p; } });
+  const waits = [];
+  handlers.fetch({ request, respondWith: (p) => { responded = p; }, waitUntil: (p) => { waits.push(p); } });
   if (!responded) return { intercepted: false };
-  try { const res = await responded; return { intercepted: true, status: res.status, body: await res.text() }; } catch (e) { return { intercepted: true, error: String(e) }; }
+  try { const res = await responded; const body = await res.text(); await Promise.allSettled(waits); return { intercepted: true, status: res.status, body, marker: res.headers.get("server-timing") }; } catch (e) { return { intercepted: true, error: String(e) }; }
 };
 
 // 1) установка
@@ -81,13 +82,24 @@ t("activate: старые кэши удалены, новые остались",
 
 // 3) онлайн: страница сохраняется
 let r = await doFetch("/rostov-na-donu", { mode: "navigate" });
-t("онлайн: страница города отдаётся", r.status === 200 && r.body.includes("city"));
+t("онлайн, первый раз: страница из сети, без пометки о копии", r.status === 200 && r.body.includes("city") && r.marker !== "sw-cache");
 t("онлайн: страница города попала в кэш", pages.has("http://localhost:3000/rostov-na-donu"));
+
+// страница открывается сразу из копии, а свежая версия подтягивается в фоне
+const hitsBefore = hits.length;
+ROUTES["/rostov-na-donu"] = () => new Response("<html>city v2</html>", { status: 200 });
+r = await doFetch("/rostov-na-donu", { mode: "navigate" });
+t("повторно: отдаётся сохранённая копия сразу (старая версия)", r.status === 200 && r.body === "<html>city</html>");
+t("…с пометкой Server-Timing: sw-cache (страница обновит данные сама)", r.marker === "sw-cache");
+t("…и в фоне запрошена свежая версия", hits.length > hitsBefore && hits.at(-1) === "/rostov-na-donu");
+r = await doFetch("/rostov-na-donu?chat=1", { mode: "navigate" });
+t("следующий заход (даже с ?query): уже новая версия", r.body === "<html>city v2</html>");
+t("копии с разными ?query не плодятся", [...pages.keys()].filter((k) => k.includes("rostov-na-donu")).length === 1);
 
 // 4) офлайн
 online = false;
 r = await doFetch("/rostov-na-donu?go=rnd-0003", { mode: "navigate" });
-t("офлайн: страница города из кэша (даже с другим ?query)", r.status === 200 && r.body.includes("city"));
+t("офлайн: страница города из кэша (даже с другим ?query)", r.status === 200 && r.body.includes("city v2"));
 r = await doFetch("/alarm", { mode: "navigate" });
 t("офлайн: /alarm открывается из кэша", r.status === 200 && r.body.includes("alarm.js"));
 r = await doFetch("/some-new-page", { mode: "navigate" });
