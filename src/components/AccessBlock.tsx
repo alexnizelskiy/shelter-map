@@ -1,5 +1,6 @@
 "use client";
 
+import { bumpHelp } from "@/lib/my-help";
 import { useState } from "react";
 import { Accessibility, CheckCircle2, Clock4, Pencil, PawPrint } from "lucide-react";
 import GlassSelect from "./GlassSelect";
@@ -26,6 +27,7 @@ export default function AccessBlock({ s, citySlug }: { s: Shelter; citySlug: str
       const r = await fetch("/api/access", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ city: citySlug, shelterId: s.id, stepFree, pets, hours }) });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) return setState({ t: "err", text: `${j.error ?? "Не удалось отправить."}${j.code ? ` (код: ${j.code})` : ""}` });
+      bumpHelp("access");
       setState({ t: "ok" });
       setOpen(false);
     } catch { setState({ t: "err", text: "Нет соединения. Попробуйте позже." }); }

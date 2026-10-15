@@ -24,6 +24,9 @@ import AccessBlock from "./AccessBlock";
 import MyShelterButton from "./MyShelterButton";
 import OfflineSettings from "./OfflineSettings";
 import ChatPanel from "./ChatPanel";
+import ContactBlock from "./ContactBlock";
+import { DocsView, FaqView, HelpView, ProfileLinks, type SubView } from "./ProfileViews";
+import { bumpHelp } from "@/lib/my-help";
 import Spinner from "./Spinner";
 import BrandLogo from "./BrandLogo";
 import { useNavigation, type NavState, type Variant } from "@/lib/useNavigation";
@@ -120,6 +123,8 @@ export default function CityView({ city: city0, shelters: shelters0 }: { city: C
   const basemap = getBasemap(bmId);
   const [layersOpen, setLayersOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [sub, setSub] = useState<SubView | null>(null); // вложенный экран настроек: Частые вопросы, Документы, Ваша помощь
+  if (tab !== "settings" && sub) setSub(null);
   const [infoOpen, setInfoOpen] = useState(false); // «О карте»: на телефоне открывается разделом на весь экран, как на компьютере
   const sheetOpen = searchOpen || infoOpen || tab !== "map"; // на телефоне такие разделы открываются почти на весь экран
   const [chatSeen, setChatSeen] = useState(false); // чат, однажды открытый, остаётся в памяти: при возврате не грузится заново
@@ -374,7 +379,7 @@ export default function CityView({ city: city0, shelters: shelters0 }: { city: C
       <LocationPrompt current={city.slug} currentName={city.name} onChooseOther={() => setSearchOpen(true)} />
 
       <aside className="side" data-sheet={sheetOpen || undefined}>
-        <section className="panel glass" data-tab={tab} data-search={searchOpen || undefined} data-sheet={sheetOpen || undefined} data-info={infoOpen || undefined} data-dir={dir}>
+        <section className="panel glass" data-tab={tab} data-search={searchOpen || undefined} data-sheet={sheetOpen || undefined} data-info={infoOpen || undefined} data-sub={(tab === "settings" && sub) || undefined} data-dir={dir}>
           {sheetOpen && (
             <div className="sheet-head">
               <h2>{searchOpen ? "Выбор города" : tab === "map" ? "О карте" : TABS.find((t) => t.key === tab)?.label}</h2>
@@ -386,7 +391,7 @@ export default function CityView({ city: city0, shelters: shelters0 }: { city: C
               <ChatPanel key={city.slug} room={city.slug} cityName={city.name} returnPath={`/${city.slug}`} onPickCity={() => setSearchOpen(true)} shown={!searchOpen && tab === "chat"} />
             </div>
           )}
-          <div className="view" key={searchOpen ? "search" : tab === "map" ? (infoOpen ? "info" : "map") : tab}>
+          <div className="view" key={searchOpen ? "search" : tab === "map" ? (infoOpen ? "info" : "map") : tab === "settings" && sub ? `settings-${sub}` : tab}>
           {searchOpen && <CitySearch current={city.slug} onClose={() => setSearchOpen(false)} />}
 
           {!searchOpen && tab === "map" && (
@@ -436,6 +441,7 @@ export default function CityView({ city: city0, shelters: shelters0 }: { city: C
                 <div><i style={{ background: "#8b93a1" }} />Добавлено жителями, не подтверждено официально</div>
                 <div><i style={{ background: "#d99a00" }} />Жители сообщают о проблеме со входом</div>
               </div>
+              <ContactBlock />
             </>
           )}
 
@@ -467,9 +473,13 @@ export default function CityView({ city: city0, shelters: shelters0 }: { city: C
             <SuggestForm citySlug={city.slug} draft={draft} setDraft={setDraft} onPickOnMap={() => { setPicking(true); setTab("map"); }} />
           )}
 
-          {!searchOpen && tab === "settings" && (
+          {!searchOpen && tab === "settings" && sub === "faq" && <FaqView onBack={() => setSub(null)} />}
+          {!searchOpen && tab === "settings" && sub === "docs" && <DocsView onBack={() => setSub(null)} />}
+          {!searchOpen && tab === "settings" && sub === "stats" && <HelpView onBack={() => setSub(null)} />}
+          {!searchOpen && tab === "settings" && !sub && (
             <div className="about">
               <div className="large-title"><h2>Настройки</h2></div>
+              <ProfileLinks onOpen={setSub} />
               <h2 style={{ display: "flex", gap: 8, alignItems: "center" }}><Palette size={16} />Оформление</h2>
               <ThemeSwitch />
               <h2 style={{ display: "flex", gap: 8, alignItems: "center" }}><Smartphone size={16} />Приложение и офлайн</h2>
@@ -483,12 +493,6 @@ export default function CityView({ city: city0, shelters: shelters0 }: { city: C
                 <p>Заявки жителей проверяет модератор. Сообщения о входе («открыт / закрыт») не меняют официальный статус и устаревают через {REPORT_TTL_HOURS} ч.</p>
                 <p>Информация не гарантирует безопасность и доступность входа. Следуйте оповещениям МЧС.</p>
                 <p>Каталог населённых пунктов: GeoNames (CC BY 4.0). Карты: © Яндекс, © участники OpenStreetMap. Маршруты: OSRM.</p>
-              </div>
-              <div className="legal-link-row">
-                <Link href="/privacy">Политика обработки данных</Link>
-                <Link href="/terms">Соглашение</Link>
-                <Link href="/rules">Правила чата</Link>
-                <Link href="/data-request">Запрос по данным</Link>
               </div>
             </div>
           )}
@@ -547,7 +551,7 @@ function Passport({ citySlug, route, variantIdx, onVariant, onStartNav, routeBus
       const r = await fetch("/api/reports", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ city: citySlug, shelterId: s.id, kind }) });
       const j = await r.json().catch(() => ({}));
       setSent(r.ok ? { ok: true, text: "Спасибо, сообщение принято." } : { ok: false, text: `${j.error ?? "Не удалось отправить."}${j.code ? ` (код: ${j.code})` : ""}` });
-      if (r.ok) onSent();
+      if (r.ok) { bumpHelp("reports"); onSent(); }
     } catch {
       setSent({ ok: false, text: "Нет соединения. Попробуйте позже." });
     } finally {
@@ -595,6 +599,7 @@ function Passport({ citySlug, route, variantIdx, onVariant, onStartNav, routeBus
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(`${j.error ?? "Не удалось отправить."}${j.code ? ` (код: ${j.code})` : ""}`);
       setDraft(null);
+      bumpHelp("photos");
       setPhotoMsg({ ok: true, text: "Спасибо! Фото отправлено на проверку и появится после одобрения." });
     } catch (e) {
       setPhotoMsg({ ok: false, text: e instanceof Error ? e.message : "Не удалось отправить." });

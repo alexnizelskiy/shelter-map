@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import CityLink from "@/components/CityLink";
 import { loadCities } from "@/lib/cities-server";
 import HomeSearch from "@/components/HomeSearch";
+import ContactBlock from "@/components/ContactBlock";
 import BrandLogo from "@/components/BrandLogo";
 import { HomeSkeleton } from "@/components/skeletons";
 
@@ -40,6 +41,7 @@ export default function Home() {
       <Suspense fallback={<HomeSkeleton />}>
         <Cities />
       </Suspense>
+      <ContactBlock />
     </main>
   );
 }

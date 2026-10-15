@@ -10,6 +10,13 @@ const subscribe = (cb: () => void) => {
   return () => { listeners.delete(cb); window.removeEventListener("storage", cb); };
 };
 
+// Чтение и запись вне компонентов (например, счётчик помощи): подписчики обновятся так же, как при usePref
+export const readPref = (key: string, fallback = ""): string => { try { return localStorage.getItem(key) ?? fallback; } catch { return fallback; } };
+export function writePref(key: string, v: string) {
+  try { localStorage.setItem(key, v); } catch {}
+  listeners.forEach((l) => l());
+}
+
 export function usePref(key: string, fallback: string): [string, (v: string) => void] {
   const value = useSyncExternalStore(
     subscribe,

@@ -1,5 +1,6 @@
 "use client";
 
+import { bumpHelp } from "@/lib/my-help";
 import { useState } from "react";
 import { CheckCircle2, LocateFixed, MapPin, Send } from "lucide-react";
 import Link from "next/link";
@@ -53,6 +54,7 @@ export default function SuggestForm({ citySlug, draft, setDraft, onPickOnMap }: 
       const j = await r.json().catch(() => ({}));
       if (!r.ok) return setState({ type: "error", text: j.error ?? "Не удалось отправить." });
       setDraft(EMPTY_DRAFT);
+      bumpHelp("suggestions");
       setState({ type: "ok" });
     } catch {
       setState({ type: "error", text: "Нет соединения. Попробуйте позже." });

@@ -12,9 +12,10 @@ export function Op({ field }: { field: "name" | "inn" | "email" | "address" }) {
 export function LegalLinks() {
   return (
     <nav className="legal-links" aria-label="Документы">
+      <Link href="/about">О проекте и контакты</Link>
       <Link href="/privacy">Политика обработки данных</Link>
       <Link href="/terms">Пользовательское соглашение</Link>
-      <Link href="/rules">Правила чата</Link>
+      <Link href="/rules">Правила отметок и чата</Link>
       <Link href="/data-request">Запрос по данным</Link>
     </nav>
   );
