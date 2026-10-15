@@ -39,6 +39,8 @@ import { getBasemap } from "@/lib/basemaps";
 const CityMap = dynamic(() => import("./CityMap"), { ssr: false, loading: () => <div className="map-skel" aria-hidden="true" /> });
 
 type Tab = "map" | "list" | "radar" | "chat" | "suggest" | "settings";
+const TAB_KEY = "opora-tab";
+let tabRestored = false; // возвращаем раздел только при первом показе после загрузки страницы, а не при переходах между городами
 const isNarrow = () => typeof window !== "undefined" && window.matchMedia("(max-width: 760px)").matches;
 
 const TABS: { key: Tab; label: string; Icon: LucideIcon }[] = [
@@ -144,13 +146,33 @@ export default function CityView({ city: city0, shelters: shelters0 }: { city: C
   const [routeBusy, setRouteBusy] = useState(false);
   const [routeError, setRouteError] = useState<string | null>(null);
 
-  // после входа через внешний сервис открываем чат (?chat=1)
+  // после входа через внешний сервис открываем чат (?chat=1), по нажатию на уведомление — «Радар» (?radar=1);
+  // при обновлении страницы возвращаемся в тот раздел, где были (запоминается на время вкладки)
   useEffect(() => {
     const q = window.location.search;
-    if (!q.includes("chat=1") && !q.includes("radar=1")) return;
-    const t = setTimeout(() => setTab(q.includes("radar=1") ? "radar" : "chat"), 0);
+    let target: Tab | null = null;
+    let targetSub: SubView | null = null;
+    if (q.includes("chat=1") || q.includes("radar=1")) target = q.includes("radar=1") ? "radar" : "chat";
+    else if (!tabRestored) {
+      const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+      if (nav?.type === "reload" || nav?.type === "back_forward") {
+        try {
+          const saved = JSON.parse(sessionStorage.getItem(TAB_KEY) ?? "null") as { tab?: string; sub?: string } | null;
+          if (saved && TABS.some((x) => x.key === saved.tab)) target = saved.tab as Tab;
+          if (saved?.sub === "faq" || saved?.sub === "docs" || saved?.sub === "stats") targetSub = saved.sub;
+        } catch { /* хранилище недоступно */ }
+      }
+    }
+    tabRestored = true;
+    if (!target || target === "map") return;
+    const t = setTimeout(() => { setTab(target); if (target === "settings" && targetSub) setSub(targetSub); }, 0);
     return () => clearTimeout(t);
   }, []);
+  // запоминаем текущий раздел (и вложенный экран настроек)
+  useEffect(() => {
+    if (!tabRestored) return;
+    try { sessionStorage.setItem(TAB_KEY, JSON.stringify({ tab, sub: tab === "settings" ? sub : null })); } catch { /* приватный режим */ }
+  }, [tab, sub]);
 
   // Страница открылась сразу из сохранённой копии (service worker): тихо подтягиваем свежие данные, не перезагружая интерфейс
   const router = useRouter();
