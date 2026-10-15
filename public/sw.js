@@ -117,3 +117,29 @@ self.addEventListener("fetch", (event) => {
 });
 
 self.addEventListener("message", (event) => { if (event.data === "skipWaiting") self.skipWaiting(); });
+
+// Push-уведомления «Радара»: новое сообщение или сводка «N новых». Одно уведомление заменяет предыдущее (tag).
+self.addEventListener("push", (event) => {
+  let d = {};
+  try { d = event.data ? event.data.json() : {}; } catch { d = {}; }
+  event.waitUntil(self.registration.showNotification(d.title || "Радар", {
+    body: d.body || "", icon: "/pwa-icon/192", badge: "/pwa-icon/48", tag: d.tag || "radar", renotify: Boolean(d.renotify), lang: "ru",
+    data: { url: typeof d.url === "string" && d.url.startsWith("/") ? d.url : "/" },
+  }));
+});
+
+// Нажатие: открываем раздел «Радар» в уже открытом окне сайта или в новом
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = new URL((event.notification.data && event.notification.data.url) || "/", self.location.origin).href;
+  event.waitUntil((async () => {
+    const list = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const c of list) {
+      if (new URL(c.url).origin !== self.location.origin) continue;
+      await c.focus();
+      try { if ("navigate" in c) await c.navigate(url); } catch { /* окно нельзя перенаправить: оставляем как есть */ }
+      return;
+    }
+    await self.clients.openWindow(url);
+  })());
+});

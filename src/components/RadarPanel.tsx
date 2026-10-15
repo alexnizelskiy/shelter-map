@@ -5,6 +5,7 @@ import { RefreshCw, TriangleAlert } from "lucide-react";
 import { usePref } from "@/lib/use-pref";
 import { RADAR_REGION_DEFAULT } from "@/lib/radar-const";
 import { RowsSkeleton } from "./skeletons";
+import { PushBell, PushOffer, usePush } from "./PushControl";
 
 type Item = { id: number; at: string; text: string; region: string };
 type Data = { enabled: boolean; posts: Item[]; updatedAt: number | null; stale?: boolean; error?: boolean };
@@ -22,9 +23,10 @@ const ago = (d: Date) => {
 };
 
 // Раздел «Радар»: сообщения за последние сутки из открытого канала. Источник указан, подпись канала не копируется.
-export default function RadarPanel({ shown = true }: { shown?: boolean }) {
+export default function RadarPanel({ shown = true, regionName = RADAR_REGION_DEFAULT, citySlug = "" }: { shown?: boolean; regionName?: string; citySlug?: string }) {
+  const push = usePush(regionName, citySlug);
   const [mode, setMode] = usePref("radar-region", "region"); // region | all
-  const region = mode === "all" ? "" : RADAR_REGION_DEFAULT;
+  const region = mode === "all" ? "" : regionName;
   const key = region || "all";
   const [data, setData] = useState<Data | null>(() => memory.get(key) ?? null);
   const [busy, setBusy] = useState(false);
@@ -55,14 +57,18 @@ export default function RadarPanel({ shown = true }: { shown?: boolean }) {
   return (
     <div className="radar">
       <div className="large-title"><h2>Радар</h2>
-        <button className="icon-btn" aria-label="Обновить" onClick={load} disabled={busy}><RefreshCw size={16} className={busy ? "rotating" : ""} /></button>
+        <span className="radar-actions">
+          <PushBell p={push} />
+          <button className="icon-btn" aria-label="Обновить" onClick={load} disabled={busy}><RefreshCw size={16} className={busy ? "rotating" : ""} /></button>
+        </span>
       </div>
+      <PushOffer p={push} />
       <div className="card radar-warn" role="note">
         <TriangleAlert size={18} />
         <p><b>Неофициальная информация.</b> Сообщения из открытого канала, мы их не проверяем и не гарантируем точность. Официальные оповещения: МЧС, сирены и сообщения на телефон. Следуйте указаниям экстренных служб.</p>
       </div>
       <div className="segmented two" role="group" aria-label="Регион">
-        <button className={mode !== "all" ? "seg on" : "seg"} onClick={() => setMode("region")} aria-pressed={mode !== "all"}>{RADAR_REGION_DEFAULT}</button>
+        <button className={mode !== "all" ? "seg on" : "seg"} onClick={() => setMode("region")} aria-pressed={mode !== "all"}>{regionName}</button>
         <button className={mode === "all" ? "seg on" : "seg"} onClick={() => setMode("all")} aria-pressed={mode === "all"}>Вся Россия</button>
       </div>
 

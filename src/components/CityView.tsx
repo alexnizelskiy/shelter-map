@@ -25,6 +25,7 @@ import MyShelterButton from "./MyShelterButton";
 import OfflineSettings from "./OfflineSettings";
 import ChatPanel from "./ChatPanel";
 import RadarPanel from "./RadarPanel";
+import { PushSettings } from "./PushControl";
 import ContactBlock from "./ContactBlock";
 import { DocsView, FaqView, HelpView, ProfileLinks, type SubView } from "./ProfileViews";
 import { bumpHelp } from "@/lib/my-help";
@@ -145,8 +146,9 @@ export default function CityView({ city: city0, shelters: shelters0 }: { city: C
 
   // после входа через внешний сервис открываем чат (?chat=1)
   useEffect(() => {
-    if (!window.location.search.includes("chat=1")) return;
-    const t = setTimeout(() => setTab("chat"), 0);
+    const q = window.location.search;
+    if (!q.includes("chat=1") && !q.includes("radar=1")) return;
+    const t = setTimeout(() => setTab(q.includes("radar=1") ? "radar" : "chat"), 0);
     return () => clearTimeout(t);
   }, []);
 
@@ -474,7 +476,7 @@ export default function CityView({ city: city0, shelters: shelters0 }: { city: C
           )}
 
 
-          {!searchOpen && tab === "radar" && <RadarPanel shown />}
+          {!searchOpen && tab === "radar" && <RadarPanel shown regionName={city.region || undefined} citySlug={city.slug} />}
 
           {!searchOpen && tab === "suggest" && (
             <SuggestForm citySlug={city.slug} draft={draft} setDraft={setDraft} onPickOnMap={() => { setPicking(true); setTab("map"); }} />
@@ -487,6 +489,7 @@ export default function CityView({ city: city0, shelters: shelters0 }: { city: C
             <div className="about">
               <div className="large-title"><h2>Настройки</h2></div>
               <ProfileLinks onOpen={setSub} />
+              <PushSettings regionName={city.region || "Ростовская область"} city={city.slug} />
               <h2 style={{ display: "flex", gap: 8, alignItems: "center" }}><Palette size={16} />Оформление</h2>
               <ThemeSwitch />
               <h2 style={{ display: "flex", gap: 8, alignItems: "center" }}><Smartphone size={16} />Приложение и офлайн</h2>

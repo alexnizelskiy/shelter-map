@@ -22,6 +22,7 @@ export const PURGE_SQL = [
   `DELETE FROM site_hits WHERE day < current_date - ${R.siteHitsDays}`,
   `DELETE FROM bot_events WHERE created_at < now() - interval '${R.botEventsDays} days'`,
   `DELETE FROM bot_activity WHERE day < current_date - ${R.siteHitsDays}`,
+  `DELETE FROM push_subscriptions WHERE fails >= 5 OR last_ok < now() - interval '12 months'`,
   `DELETE FROM radar_posts WHERE posted_at < now() - interval '2 days'`,
   `DELETE FROM login_codes WHERE created_at < now() - interval '1 day'`,
   `DELETE FROM broadcasts WHERE created_at < now() - interval '${R.broadcastDays} days'`,

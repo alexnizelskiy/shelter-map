@@ -16,6 +16,7 @@
   --info: #2f7cf6;
   --field: rgba(120, 120, 128, 0.12);
   --page: #e9ecef;
+  --pop: #ffffff;
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", system-ui, sans-serif;
 }
 :root[data-theme="dark"] {
@@ -35,6 +36,7 @@
   --info: #5aa2ff;
   --field: rgba(120, 120, 128, 0.26);
   --page: #0d0f12;
+  --pop: #20242b;
 }
 
 * { box-sizing: border-box; }
@@ -721,3 +723,18 @@ h1, h2, h3 { letter-spacing: -0.02em; }
   .map-pill .map-chip { flex: 0 1 auto; }
   .map-pill .map-chip-name { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
+
+/* уведомления радара */
+.radar { position: relative; }
+.radar-actions { display: inline-flex; gap: 8px; align-items: center; }
+.bell.on { background: var(--accent-soft); color: var(--accent); }
+.push-pop { position: absolute; right: 0; top: 46px; z-index: 6; width: min(330px, 100%); padding: 14px; box-shadow: var(--shadow); background: var(--pop); display: grid; gap: 8px; animation: pop-in var(--layer-t) backwards; }
+.push-pop h3, .push-settings h3 { margin: 0; font-size: calc(15px * var(--fs, 1)); display: flex; gap: 8px; align-items: center; }
+.push-panel { display: grid; gap: 8px; }
+.push-panel .note, .push-offer .note { margin: 0; }
+.push-panel .seg { display: inline-flex; justify-content: center; align-items: center; gap: 6px; }
+.push-panel .btn-plain { display: inline-flex; gap: 6px; align-items: center; justify-content: center; }
+.push-offer { padding: 14px; display: grid; gap: 8px; border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.push-offer-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.push-offer-btns .btn { border: 0; cursor: pointer; font-family: inherit; padding: 11px 6px; font-size: calc(13.5px * var(--fs, 1)); }
+.push-settings { padding: 14px; margin: 8px 0; display: grid; gap: 10px; }

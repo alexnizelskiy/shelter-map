@@ -51,11 +51,14 @@ async function fetchImpl(input) {
 
 // ── окружение воркера ──
 const handlers = {};
+const shown = [], opened = [];
+let clientsList = [];
 const self = {
   location: new URL("http://localhost:3000/sw.js?v=t1"),
   addEventListener: (type, fn) => { handlers[type] = fn; },
   skipWaiting: async () => {},
-  clients: { claim: async () => {} },
+  clients: { claim: async () => {}, matchAll: async () => clientsList, openWindow: async (u) => { opened.push(u); } },
+  registration: { showNotification: async (title, opts) => { shown.push({ title, opts }); } },
 };
 vm.runInNewContext(readFileSync("public/sw.js", "utf8"), { self, caches: cachesImpl, fetch: fetchImpl, URL, Request, Response, Headers, Promise, setTimeout, clearTimeout, Set, Error, TypeError }, { filename: "sw.js" });
 
@@ -133,5 +136,24 @@ for (const p of ["/api/route?from=1,2&to=3,4", "/api/places?q=ab", "/api/reports
 t("POST не перехватывается", (await doFetch("/api/reports", { method: "POST" })).intercepted === false);
 const tile = await doFetch("/v1/tiles/?x=1&y=2&z=3", { origin: "https://tiles.api-maps.yandex.ru" });
 t("тайлы чужих карт не перехватываются и не кэшируются", tile.intercepted === false);
+
+
+// 7) push-уведомления
+const pushEvent = (data) => { let p; handlers.push({ data: { json: () => data }, waitUntil: (x) => { p = x; } }); return p; };
+await pushEvent({ title: "Радар", body: "Орёл · Орловская область · Фиксация БПЛА", tag: "radar", renotify: true, url: "/rostov-na-donu?radar=1" });
+t("push: показывается уведомление с текстом, меткой и адресом", shown.length === 1 && shown[0].title === "Радар" && shown[0].opts.body.includes("Орёл") && shown[0].opts.tag === "radar" && shown[0].opts.renotify === true && shown[0].opts.data.url === "/rostov-na-donu?radar=1");
+await pushEvent({ title: "x", url: "https://evil.example/" });
+t("push: внешний адрес в данных заменяется на главную", shown[1].opts.data.url === "/");
+{ let p; handlers.push({ data: { json: () => { throw new Error("bad"); } }, waitUntil: (x) => { p = x; } }); await p; }
+t("push: битые данные не ломают воркер — показывается уведомление по умолчанию", shown.length === 3 && shown[2].title === "Радар" && shown[2].opts.data.url === "/");
+const click = async (url) => { let p; const n = { close() { this.closed = true; }, data: { url } }; handlers.notificationclick({ notification: n, waitUntil: (x) => { p = x; } }); await p; return n; };
+opened.length = 0; clientsList = [];
+await click("/azov?radar=1");
+t("нажатие: окна нет — открывается новое по адресу сайта", opened.length === 1 && opened[0] === "http://localhost:3000/azov?radar=1");
+let focused = 0, navigated = null;
+clientsList = [{ url: "http://localhost:3000/rostov-na-donu", focus: async () => { focused++; }, navigate: async (u) => { navigated = u; } }];
+opened.length = 0;
+await click("/azov?radar=1");
+t("нажатие: окно сайта уже открыто — оно получает фокус и переходит на раздел", focused === 1 && navigated === "http://localhost:3000/azov?radar=1" && opened.length === 0);
 
 if (bad) process.exitCode = 1;

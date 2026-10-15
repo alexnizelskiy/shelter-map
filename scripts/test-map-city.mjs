@@ -7,7 +7,8 @@ const t = (name, cond, extra = "") => { if (!cond) bad++; console.log(cond ? "OK
 
 const rostov = JSON.parse(readFileSync("data/rostov-na-donu.json", "utf8"));
 const gisro = JSON.parse(readFileSync("data/gisro-shelters.json", "utf8"));
-const lists = { "rostov-na-donu": rostov, ...gisro };
+const extra = JSON.parse(readFileSync("data/extra-shelters.json", "utf8"));
+const lists = { "rostov-na-donu": rostov, ...gisro, ...extra };
 const slugs = Object.keys(lists);
 const p = [];
 slugs.forEach((s, ci) => lists[s].forEach((x) => p.push([x.id, x.lat, x.lng, 0, ci])));
@@ -18,6 +19,7 @@ const center = (slug) => { const l = lists[slug]; return [l.reduce((a, x) => a +
 const at = (slug, cur) => { const [lng, lat] = center(slug); return cityAt(pts, lng, lat, cur); };
 
 t("из Ростова переехали в Таганрог → Таганрог", at("taganrog", "rostov-na-donu") === "taganrog");
+t("карта над Реутовом (Подмосковье): выбирается Реутов", cityAt(pts, 37.86, 55.76, "rostov-na-donu") === "reutov");
 t("из Таганрога вернулись в Ростов → Ростов", cityAt(pts, 39.72, 47.22, "taganrog") === "rostov-na-donu");
 t("Батайск рядом с Ростовом выбирается, когда карта над Батайском", cityAt(pts, 39.735, 47.14, "rostov-na-donu") === "bataysk");
 t("Азов", cityAt(pts, 39.42, 47.11, "rostov-na-donu") === "azov");

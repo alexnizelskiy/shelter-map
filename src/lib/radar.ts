@@ -1,6 +1,7 @@
 import { ensureSchema, sql } from "./db";
 import { getSetting, setSetting } from "./chat-db";
 import { parseChannelHtml, toRadarPost, type RadarPost } from "./radar-parse";
+import { notifyRadar } from "./push";
 
 // «Радар»: свежие сообщения из открытого канала @radarrussiia (публичная страница t.me/s/…). Храним только последние сутки.
 // Обновление ленивое: при запросе, не чаще раза в минуту. Источник всегда указывается на странице, подпись канала не копируется.
@@ -65,6 +66,11 @@ export async function refreshRadar(force = false): Promise<void> {
       await sql()`INSERT INTO radar_posts (id, posted_at, text, region) VALUES (${p.id}, ${p.at}, ${p.text}, ${p.region}) ON CONFLICT (id) DO NOTHING`;
     }
     await sql()`DELETE FROM radar_posts WHERE posted_at < now() - make_interval(hours => ${KEEP_HOURS})`;
+    // push-уведомления только о свежих сообщениях (не старше 30 минут) и не при первом заполнении ленты
+    if (known > 0) {
+      const recent = fresh.filter((p) => now - Date.parse(p.at) < 30 * 60_000);
+      if (recent.length) await notifyRadar(recent).catch((e) => console.error("radar push", e));
+    }
     await setSetting("radar_error", "");
     await setSetting("radar_ok_at", String(now));
   } catch (e) {

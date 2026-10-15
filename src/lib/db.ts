@@ -255,6 +255,19 @@ CREATE TABLE IF NOT EXISTS radar_posts (
 );
 CREATE INDEX IF NOT EXISTS radar_posts_time_idx ON radar_posts (posted_at DESC);
 
+-- Подписки на push-уведомления «Радара» (Web Push): адрес доставки устройства и выбор региона
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  endpoint   TEXT PRIMARY KEY,
+  p256dh     TEXT NOT NULL,
+  auth       TEXT NOT NULL,
+  scope      TEXT NOT NULL CHECK (scope IN ('region','all')),
+  region     TEXT NOT NULL DEFAULT '',
+  url        TEXT NOT NULL DEFAULT '/',
+  fails      INT NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_ok    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Рассылки уведомлений через ботов
 CREATE TABLE IF NOT EXISTS broadcasts (
   id          BIGSERIAL PRIMARY KEY,
