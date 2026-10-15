@@ -21,7 +21,7 @@ self.addEventListener("install", (event) => {
         const html = await res.text();
         const assets = [...new Set([...html.matchAll(/(?:src|href)="(\/_next\/static\/[^"]+)"/g)].map((m) => m[1]))];
         await Promise.all(assets.map((a) => statics.add(a).catch(() => {})));
-      } catch (_) { /* нет сети при установке: докэшируем при обычной работе */ }
+      } catch { /* нет сети при установке: докэшируем при обычной работе */ }
     }
     await self.skipWaiting();
   })());
@@ -43,10 +43,10 @@ async function networkFirst(req, cacheName, ms) {
     const res = await Promise.race([fetch(req), timeout(ms)]);
     if (res && res.ok) cache.put(req, res.clone());
     return res;
-  } catch (_) {
+  } catch (err) {
     const hit = await cache.match(req, { ignoreSearch: true });
     if (hit) return hit;
-    throw _;
+    throw err;
   }
 }
 
@@ -98,7 +98,7 @@ self.addEventListener("fetch", (event) => {
       }
       try {
         return await Promise.race([fresh, timeout(4000)]);
-      } catch (_) {
+      } catch {
         return (await cache.match("/offline")) || new Response("Нет сети", { status: 503, headers: { "Content-Type": "text/plain; charset=utf-8" } });
       }
     })());
