@@ -369,9 +369,12 @@ export default function CityView({ city: city0, shelters: shelters0 }: { city: C
 
       {!sheetOpen && !navActive && !picking && !current && (
         <div className="map-bar">
-          <button className="map-chip glass" onClick={() => setSearchOpen(true)} aria-label={`Город: ${city.name}. Сменить город`}>
-            <MapPin size={16} /><span key={city.slug} className="map-chip-name swap">{city.name}</span><ChevronDown size={15} />
-          </button>
+          <div className="map-pill glass">
+            <BrandLogo height={24} />
+            <button className="map-chip" onClick={() => setSearchOpen(true)} aria-label={`Город: ${city.name}. Сменить город`}>
+              <MapPin size={15} /><span key={city.slug} className="map-chip-name swap">{city.name}</span><ChevronDown size={15} />
+            </button>
+          </div>
           <button className="map-info glass" onClick={() => setInfoOpen(true)} aria-label="О карте и источниках данных"><Info size={20} /></button>
         </div>
       )}

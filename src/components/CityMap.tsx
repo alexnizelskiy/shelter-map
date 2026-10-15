@@ -46,6 +46,9 @@ export default function CityMap({ center, zoom, shelters, selectedId, onSelect, 
   const onSelectRef = useRef(onSelect);
   const sheltersRef = useRef(shelters);
   const fitKey = fit?.join(",") ?? "";
+  // Примитивы вместо массива center: страница обновляет данные «на тихо» (router.refresh), и новый массив с теми же числами
+  // раньше пересоздавал всю карту
+  const [cLng, cLat] = center;
   const fitRef = useRef(fit);
   const onUserMoveRef = useRef(onUserMove);
   const othersRef = useRef<OtherPoint[]>(others ?? []);
@@ -79,7 +82,7 @@ export default function CityMap({ center, zoom, shelters, selectedId, onSelect, 
       style: emptyStyle,
       ...(fitKey
         ? { bounds: [[fitRef.current![0], fitRef.current![1]], [fitRef.current![2], fitRef.current![3]]] as [[number, number], [number, number]], fitBoundsOptions: { padding: { top: 30, bottom: narrow ? 110 : 30, left: narrow ? 20 : 430, right: 70 }, maxZoom: 16 } }
-        : { center, zoom }),
+        : { center: [cLng, cLat] as [number, number], zoom }),
     });
     map.current = m;
     const clusterMarkers = new Map<number, maplibregl.Marker>();
@@ -147,7 +150,7 @@ export default function CityMap({ center, zoom, shelters, selectedId, onSelect, 
       ready.current = true;
     });
     return () => { ready.current = false; themeObserver.disconnect(); clusterMarkers.clear(); m.remove(); };
-  }, [center, zoom, fitKey]);
+  }, [cLng, cLat, zoom, fitKey]);
 
   // переключение подложки на лету
   useEffect(() => {
@@ -211,9 +214,10 @@ export default function CityMap({ center, zoom, shelters, selectedId, onSelect, 
     const m = map.current;
     if (!m || !ready.current) return;
     m.setFilter("sel", ["==", ["get", "id"], selectedId ?? ""]);
-    const s = shelters.find((x) => x.id === selectedId);
+    // летим к точке только когда выбрали другую: обновление списка (тихая подгрузка данных) карту не двигает
+    const s = sheltersRef.current.find((x) => x.id === selectedId);
     if (s) m.flyTo({ center: [s.lng, s.lat], zoom: Math.max(m.getZoom(), 16) });
-  }, [selectedId, shelters]);
+  }, [selectedId]);
 
   // отметки жителей: перекрашиваем точки с предупреждением
   useEffect(() => {

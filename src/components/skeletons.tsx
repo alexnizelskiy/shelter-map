@@ -46,13 +46,17 @@ export function ChatSkeleton() {
   );
 }
 
-// Страница города: форма левой панели и дока, пока приходят данные
+// Страница города, пока приходят данные: ровный фон карты, на телефоне плашки сверху и док, на компьютере форма левой панели
 export function CityPageSkeleton() {
   return (
     <div className="app" role="status" aria-label="Загрузка">
       <div className="map-skel" />
+      <div className="map-bar" aria-hidden="true">
+        <Skel w={210} h={46} r={999} />
+        <Skel w={44} h={44} r={999} />
+      </div>
       <aside className="side">
-        <section className="panel glass">
+        <section className="panel glass skel-panel">
           <div className="large-title"><Skel w={170} h={30} /><Skel w={120} h={28} r={999} /></div>
           <Skel h={50} r={16} />
           <div className="stats" style={{ marginTop: 12 }}>

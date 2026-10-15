@@ -387,8 +387,8 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 @keyframes shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
 .skel-row { cursor: default; }
 .skel-bubble { display: grid; gap: 7px; cursor: default; }
-.map-skel { position: absolute; inset: 0; background: linear-gradient(110deg, #e4e8ec 30%, #eef1f4 50%, #e4e8ec 70%); background-size: 220% 100%; animation: shimmer 1.8s ease-in-out infinite; }
-:root[data-theme="dark"] .map-skel { background: linear-gradient(110deg, #14181d 30%, #1b2027 50%, #14181d 70%); background-size: 220% 100%; }
+.map-skel { position: absolute; inset: 0; background: #e4e8ec; }
+:root[data-theme="dark"] .map-skel { background: #14181d; }
 .spinner { animation: spin 0.9s linear infinite; flex: none; }
 .home-skel { margin: 8px 0 14px; }
 @media (prefers-reduced-motion: reduce) { .skel, .map-skel { animation: none; } .spinner { animation-duration: 2.5s; } }
@@ -683,3 +683,15 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .donate-amounts a { display: grid; place-items: center; padding: 12px 4px; border-radius: 14px; border: 1px solid var(--line); background: var(--glass-2); color: var(--fg); text-decoration: none; font-weight: 700; font-size: calc(15px * var(--fs, 1)); }
 .donate-amounts a:nth-child(2) { border-color: var(--accent); color: var(--accent); }
 .contact.compact { background: transparent; border: 0; padding: 0; }
+
+/* скелетон города на телефоне: панель не показываем (там нижний лист), остаются плашки сверху и док */
+@media (max-width: 760px) { .skel-panel { display: none; } }
+
+/* верхняя плашка карты на телефоне: логотип и город в одной капсуле */
+@media (max-width: 760px) {
+  .map-pill { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: calc(100% - 56px); padding: 5px 5px 5px 14px; border-radius: 999px; }
+  .map-pill .logo { flex: none; height: 24px; width: auto; }
+  .map-pill .map-chip { min-width: 0; max-width: none; padding: 8px 10px 8px 9px; border: 0; background: var(--accent-soft); border-radius: 999px; box-shadow: none; }
+}
+.open-map { margin: 0 0 6px; }
+.open-map-note { margin: 0 4px 14px; text-align: center; }
