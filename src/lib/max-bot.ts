@@ -2,8 +2,9 @@
 import { TEXT } from "./bot";
 import type { MaxButton } from "./max";
 import type { BotEventKind } from "./bot-users";
+import { parseLoginText } from "./login-codes";
 
-type MaxUser = { user_id?: number | string; id?: number | string; first_name?: string; is_bot?: boolean };
+type MaxUser = { user_id?: number | string; id?: number | string; first_name?: string; last_name?: string; avatar_url?: string; full_avatar_url?: string; is_bot?: boolean };
 
 export type MaxUpdate = {
   update_type?: string;
@@ -22,6 +23,7 @@ export type MaxDeps = {
   subscribed: (userId: string) => Promise<boolean>; // бросает исключение, если проверить не удалось
   track: (e: { kind: BotEventKind; userId: string; chatId?: string; source?: string; lang?: string }) => Promise<void>;
   blocked: (userId: string) => Promise<void>;
+  login?: (code: string, who: { extId: string; firstName: string; lastName: string; avatar: string | null }) => Promise<boolean>; // подтверждение входа в чат на сайте
   origin: string;
   channelLink: string;
   gate: boolean;
@@ -51,6 +53,14 @@ async function check(d: MaxDeps, userId: string): Promise<boolean | null> {
   catch (e) { d.log?.("max subscription check failed", e); return null; }
 }
 
+// Вход в чат на сайте: бот подтверждает код от имени человека
+async function confirmLogin(d: MaxDeps, userId: string, user: MaxUser | undefined, code: string) {
+  await d.track({ kind: "start", userId, chatId: userId });
+  const avatar = user?.full_avatar_url ?? user?.avatar_url ?? null;
+  const ok = d.login ? await d.login(code, { extId: userId, firstName: user?.first_name ?? "", lastName: user?.last_name ?? "", avatar: avatar && /^https:\/\//i.test(avatar) ? avatar : null }) : false;
+  await d.send(userId, ok ? TEXT.loginOk : TEXT.loginBad, ok ? [] : [[{ type: "link", text: "Открыть сайт", url: d.origin }]]);
+}
+
 async function greet(d: MaxDeps, userId: string, source: string, lang?: string) {
   await d.track({ kind: "start", userId, chatId: userId, source, lang });
   const sub = await check(d, userId);
@@ -66,6 +76,8 @@ export async function handleMaxUpdate(u: MaxUpdate, d: MaxDeps): Promise<void> {
   if (type === "bot_started") {
     const userId = uid(u.user);
     if (!userId || u.user?.is_bot) return;
+    const login = /^login_([A-Za-z0-9]{10})$/i.exec(u.payload ?? "");
+    if (login) { await confirmLogin(d, userId, u.user, login[1].toUpperCase()); return; }
     await greet(d, userId, src(u.payload), u.user_locale);
     return;
   }
@@ -85,6 +97,8 @@ export async function handleMaxUpdate(u: MaxUpdate, d: MaxDeps): Promise<void> {
     const text = (m.body?.text ?? "").trim();
     const cmd = text.split(/[\s@]/)[0].toLowerCase();
 
+    const loginCode = parseLoginText(text); // «/start login_КОД» или «вход КОД»: для тех, кто уже запускал бота раньше
+    if (loginCode) { await confirmLogin(d, userId, m.sender, loginCode); return; }
     if (cmd === "/alarm") { await d.track({ kind: "open", userId, chatId: userId }); await d.send(userId, TEXT.alarm, [[{ type: "link", text: "🚨 Открыть режим «Тревога»", url: `${d.origin}/alarm` }]]); return; }
     if (cmd === "/help") { await d.send(userId, TEXT.help); return; }
     if (cmd === "/id") { await d.send(userId, `Ваш ID в MAX: ${userId}`); return; }

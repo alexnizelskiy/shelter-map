@@ -607,7 +607,7 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .dock { position: relative; }
 .dock-tab { position: relative; z-index: 1; }
 .dock-tab.on { background: transparent; }
-.dock-pill { position: absolute; top: 5px; bottom: 5px; left: 5px; width: calc((100% - 18px) / 5); border-radius: 999px; background: var(--accent-soft); transform: translateX(calc(var(--i, 0) * (100% + 2px))); transition: transform 480ms var(--spring); pointer-events: none; }
+.dock-pill { position: absolute; top: 5px; bottom: 5px; left: 5px; width: calc((100% - 10px - (var(--n, 5) - 1) * 2px) / var(--n, 5)); border-radius: 999px; background: var(--accent-soft); transform: translateX(calc(var(--i, 0) * (100% + 2px))); transition: transform 480ms var(--spring); pointer-events: none; }
 .dock-tab.on svg { animation: dock-pop 420ms var(--spring); }
 
 /* телефон: листы разделов выезжают снизу, карточка тоже */
@@ -695,3 +695,30 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 }
 .open-map { margin: 0 0 6px; }
 .open-map-note { margin: 0 4px 14px; text-align: center; }
+
+/* вход в чат через MAX: ожидание подтверждения в боте */
+.max-wait { display: grid; gap: 8px; justify-items: center; text-align: center; padding: 12px; margin-top: 8px; border-radius: 18px; background: var(--glass-2); border: 1px solid var(--line); }
+.max-wait p { margin: 0; display: flex; gap: 8px; align-items: center; justify-content: center; }
+.max-wait .lb { width: 100%; flex: none; }
+.max-wait .note { display: block; }
+.lb:disabled { opacity: .55; cursor: default; }
+
+/* ───────── Радар ───────── */
+.rotating { animation: spin 1s linear infinite; }
+.radar { display: grid; gap: 10px; }
+.radar-warn { display: flex; gap: 10px; padding: 12px 14px; background: color-mix(in srgb, var(--warn) 14%, transparent); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+.radar-warn svg { flex: none; margin-top: 2px; color: var(--warn); }
+.radar-warn p { margin: 0; font-size: calc(13px * var(--fs, 1)); line-height: 1.45; }
+.radar-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.radar-post { padding: 12px 14px; }
+.radar-meta { display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px; }
+.radar-meta b { font-size: calc(17px * var(--fs, 1)); letter-spacing: -0.01em; }
+.radar-meta span { color: var(--muted); font-size: calc(12.5px * var(--fs, 1)); }
+.radar-post p { margin: 0; white-space: pre-line; font-size: calc(15px * var(--fs, 1)); line-height: 1.4; }
+.radar-src { margin: 6px 4px 0; }
+@media (max-width: 760px) { .dock-tab { padding-left: 1px; padding-right: 1px; } .dock-tab span { font-size: calc(9.5px * min(var(--fs, 1), 1.15)); } }
+@media (max-width: 760px) {
+  .panel[data-sheet][data-tab="radar"] .large-title h2 { visibility: hidden; } /* название уже в шапке листа, кнопка обновления остаётся справа */
+  .map-pill .map-chip { flex: 0 1 auto; }
+  .map-pill .map-chip-name { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}

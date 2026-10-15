@@ -5,17 +5,18 @@ let bad = 0;
 const t = (name, cond, extra = "") => { if (!cond) bad++; console.log(cond ? "OK  " : "FAIL", name, extra); };
 
 const run = async (update, o = {}) => {
-  const sent = [], answers = [], events = [], blocked = [];
+  const sent = [], answers = [], events = [], blocked = [], logins = [];
   await handleMaxUpdate(update, {
     send: async (userId, text, rows = []) => { sent.push({ userId, text, rows }); },
     answer: async (id, text) => { answers.push({ id, text }); },
     subscribed: o.subscribed ?? (async () => true),
     track: async (e) => { events.push(e); },
     blocked: async (id) => { blocked.push(id); },
+    login: async (code, who) => { logins.push({ code, who }); return o.loginOk ?? true; },
     origin: "https://oporamap.ru", channelLink: o.channelLink ?? "https://max.ru/opora_news",
     gate: o.gate ?? true, urgent: o.urgent ?? true, log: () => {},
   });
-  return { sent, answers, events, blocked };
+  return { sent, answers, events, blocked, logins };
 };
 const btns = (m) => m.rows.flat();
 const started = (payload) => ({ update_type: "bot_started", user: { user_id: 77, first_name: "Анна" }, chat_id: 5, payload, user_locale: "ru" });
@@ -62,4 +63,20 @@ r = await run({ update_type: "bot_stopped", user: { user_id: 77 }, chat_id: 5 })
 t("bot_stopped: человек помечается заблокировавшим", r.blocked[0] === "77");
 r = await run({ update_type: "dialog_removed", user: { user_id: 78 } });
 t("dialog_removed: тоже", r.blocked[0] === "78");
+
+// вход в чат на сайте через бота
+r = await run({ update_type: "bot_started", user: { user_id: 77, first_name: "Анна", last_name: "Иванова", avatar_url: "https://example.com/a.png" }, payload: "login_abcde23456" });
+t("вход по ссылке: код подтверждается в верхнем регистре с данными человека", r.logins.length === 1 && r.logins[0].code === "ABCDE23456" && r.logins[0].who.extId === "77" && r.logins[0].who.firstName === "Анна" && r.logins[0].who.lastName === "Иванова" && r.logins[0].who.avatar === "https://example.com/a.png");
+t("…бот отвечает «вы вошли», приветствие карты не шлёт", r.sent.length === 1 && r.sent[0].text === TEXT.loginOk);
+t("…метка источника не создаётся из кода входа", r.events[0].kind === "start" && !r.events[0].source);
+r = await run({ update_type: "bot_started", user: { user_id: 77 }, payload: "login_abcde23456" }, { loginOk: false });
+t("код устарел: объясняем, что делать, и даём ссылку на сайт", r.sent[0].text === TEXT.loginBad && btns(r.sent[0]).some((b) => b.url === "https://oporamap.ru"));
+r = await run(msg("вход abcde23456"));
+t("вход по сообщению «вход КОД» (кто уже запускал бота)", r.logins[0]?.code === "ABCDE23456" && r.sent[0].text === TEXT.loginOk);
+r = await run(msg("/start login_ABCDE23456"));
+t("вход по «/start login_КОД»", r.logins[0]?.code === "ABCDE23456");
+r = await run(msg("вход 123"));
+t("неверная форма кода — обычный ответ, вход не выполняется", r.logins.length === 0 && r.sent[0].text === TEXT.other);
+r = await run({ update_type: "bot_started", user: { user_id: 77, avatar_url: "http://evil/a.png" }, payload: "login_ABCDE23456" });
+t("аватар не по https не принимается", r.logins[0].who.avatar === null);
 if (bad) process.exitCode = 1;

@@ -1,8 +1,10 @@
+import { connection } from "next/server";
 import { json } from "@/lib/api-utils";
 import { dbConfigured, ensureSchema, sql } from "@/lib/db";
 
 // Общие числа сообщества для раздела «Ваша помощь»: только счётчики, без данных о людях
 export async function GET() {
+  await connection(); // всегда динамически: иначе ответ запёкся бы при сборке
   if (!dbConfigured()) return json({ reports24h: 0, reports7d: 0, places30d: 0 });
   try {
     await ensureSchema();

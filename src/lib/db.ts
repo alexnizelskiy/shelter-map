@@ -231,6 +231,30 @@ CREATE TABLE IF NOT EXISTS site_hits (
 );
 ALTER TABLE chat_users ADD COLUMN IF NOT EXISTS source TEXT NOT NULL DEFAULT '';
 
+-- Одноразовые коды входа в чат через бота (MAX): сайт создаёт код, бот подтверждает его от имени человека, сайт забирает результат
+CREATE TABLE IF NOT EXISTS login_codes (
+  code       TEXT PRIMARY KEY,
+  provider   TEXT NOT NULL,
+  ext_id     TEXT,
+  first_name TEXT,
+  last_name  TEXT,
+  avatar_url TEXT,
+  status     TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','ok')),
+  ip_hash    TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS login_codes_ip_idx ON login_codes (ip_hash, created_at DESC);
+
+-- «Радар»: свежие сообщения из открытого канала (только последние сутки, дальше удаляются)
+CREATE TABLE IF NOT EXISTS radar_posts (
+  id        BIGINT PRIMARY KEY,
+  posted_at TIMESTAMPTZ NOT NULL,
+  text      TEXT NOT NULL,
+  region    TEXT NOT NULL DEFAULT '',
+  hidden    BOOLEAN NOT NULL DEFAULT false
+);
+CREATE INDEX IF NOT EXISTS radar_posts_time_idx ON radar_posts (posted_at DESC);
+
 -- Рассылки уведомлений через ботов
 CREATE TABLE IF NOT EXISTS broadcasts (
   id          BIGSERIAL PRIMARY KEY,

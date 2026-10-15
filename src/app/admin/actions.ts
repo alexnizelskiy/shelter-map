@@ -11,6 +11,7 @@ import { tg, webhookSecret } from "@/lib/telegram";
 import { maxApi, maxWebhookSecret } from "@/lib/max";
 import { isHttps, MAX_TEXT, sendOne } from "@/lib/broadcast";
 import { cleanSource } from "@/lib/bot-users";
+import { refreshRadar } from "@/lib/radar";
 import { clean } from "@/lib/api-utils";
 import { clientIpFromHeaders } from "@/lib/proxy-trust";
 import { createHash } from "node:crypto";
@@ -361,4 +362,24 @@ export async function sendBroadcastTest(form: FormData) {
     result = r.state === "sent" ? "ok" : `err ${r.error ?? "не доставлено"}`;
   }
   redirect(`/admin?tab=broadcast&result=${encodeURIComponent(result)}&test=1`);
+}
+
+// ───── «Радар» ─────
+export async function setRadarEnabled(form: FormData) {
+  await guard();
+  await setSetting("radar_enabled", form.get("enabled") === "1" ? "1" : "0");
+  revalidatePath("/admin");
+}
+
+export async function refreshRadarNow() {
+  await guard();
+  await refreshRadar(true);
+  revalidatePath("/admin");
+}
+
+export async function hideRadarPost(form: FormData) {
+  await guard();
+  const id = Number(form.get("id"));
+  if (Number.isInteger(id) && id > 0) await sql()`UPDATE radar_posts SET hidden = true WHERE id = ${id}`;
+  revalidatePath("/admin");
 }

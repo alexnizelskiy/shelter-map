@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Building2, CalendarDays, ChevronRight, CircleAlert, DoorClosed, DoorOpen, Heart, Layers, LayoutGrid, Link2, List, LocateFixed,
-  Map as MapIcon, MapPin, MapPinPlus, Minus, Navigation, Palette, Plus, Route, Search, SearchX, Settings, ShieldCheck, TriangleAlert,
+  Map as MapIcon, MapPin, MapPinPlus, Minus, Navigation, Palette, Plus, Route, Search, SearchX, Settings, ShieldCheck, Radar, TriangleAlert,
   Users, X, Clock, Ruler, Info, ChevronDown, Car, Camera, Smartphone, WifiOff, Siren, Accessibility, PawPrint, MessageCircle, Volume2, VolumeX, ArrowUp, ArrowUpLeft, ArrowUpRight, CornerUpLeft, CornerUpRight, Undo2, RotateCw, Flag, Footprints, ListOrdered, type LucideIcon,
 } from "lucide-react";
 import { compressImage } from "@/lib/image";
@@ -24,6 +24,7 @@ import AccessBlock from "./AccessBlock";
 import MyShelterButton from "./MyShelterButton";
 import OfflineSettings from "./OfflineSettings";
 import ChatPanel from "./ChatPanel";
+import RadarPanel from "./RadarPanel";
 import ContactBlock from "./ContactBlock";
 import { DocsView, FaqView, HelpView, ProfileLinks, type SubView } from "./ProfileViews";
 import { bumpHelp } from "@/lib/my-help";
@@ -36,12 +37,13 @@ import { getBasemap } from "@/lib/basemaps";
 
 const CityMap = dynamic(() => import("./CityMap"), { ssr: false, loading: () => <div className="map-skel" aria-hidden="true" /> });
 
-type Tab = "map" | "list" | "chat" | "suggest" | "settings";
+type Tab = "map" | "list" | "radar" | "chat" | "suggest" | "settings";
 const isNarrow = () => typeof window !== "undefined" && window.matchMedia("(max-width: 760px)").matches;
 
 const TABS: { key: Tab; label: string; Icon: LucideIcon }[] = [
   { key: "map", label: "Карта", Icon: MapIcon },
   { key: "list", label: "Список", Icon: List },
+  { key: "radar", label: "Радар", Icon: Radar },
   { key: "chat", label: "Чат", Icon: MessageCircle },
   { key: "suggest", label: "Добавить", Icon: MapPinPlus },
   { key: "settings", label: "Настройки", Icon: Settings },
@@ -472,6 +474,8 @@ export default function CityView({ city: city0, shelters: shelters0 }: { city: C
           )}
 
 
+          {!searchOpen && tab === "radar" && <RadarPanel shown />}
+
           {!searchOpen && tab === "suggest" && (
             <SuggestForm citySlug={city.slug} draft={draft} setDraft={setDraft} onPickOnMap={() => { setPicking(true); setTab("map"); }} />
           )}
@@ -503,7 +507,7 @@ export default function CityView({ city: city0, shelters: shelters0 }: { city: C
         </section>
 
         <nav className="dock glass" aria-label="Разделы">
-          <span className="dock-pill" style={{ "--i": TABS.findIndex((x) => x.key === tab) } as React.CSSProperties} aria-hidden="true" />
+          <span className="dock-pill" style={{ "--i": TABS.findIndex((x) => x.key === tab), "--n": TABS.length } as React.CSSProperties} aria-hidden="true" />
           {TABS.map(({ key, label, Icon }) => (
             <button key={key} className={tab === key ? "dock-tab on" : "dock-tab"} onClick={() => { setTab(key); setInfoOpen(false); }} aria-current={tab === key}>
               <Icon size={21} strokeWidth={2} />

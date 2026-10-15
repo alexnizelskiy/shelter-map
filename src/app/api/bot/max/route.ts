@@ -4,6 +4,7 @@ import { handleMaxUpdate, type MaxUpdate } from "@/lib/max-bot";
 import { maxAnswer, maxChannelLink, maxGateEnabled, maxIsSubscribed, maxSend, maxUrgentEnabled, maxWebhookSecret } from "@/lib/max";
 import { markBlocked, trackSafe } from "@/lib/bot-users";
 import { siteOrigin } from "@/lib/chat-auth";
+import { confirmLoginCode } from "@/lib/login-codes";
 import { forgetMaxChat, rememberMaxChat } from "@/lib/max-chats";
 
 const same = (a: string, b: string) => timingSafeEqual(createHash("sha256").update(a).digest(), createHash("sha256").update(b).digest());
@@ -32,6 +33,7 @@ export async function POST(req: Request) {
       subscribed: (id) => maxIsSubscribed(id),
       track: async (e) => { await trackSafe({ platform: "max", extId: e.userId, chatId: e.chatId ?? e.userId, source: e.source, kind: e.kind, lang: e.lang, started: true }); },
       blocked: (id) => markBlocked("max", id).catch((e) => console.error("max blocked", e)),
+      login: (code, who) => confirmLoginCode(code, "max", who).catch((e) => { console.error("max login", e); return false; }),
       origin: siteOrigin(req),
       channelLink: maxChannelLink(),
       gate: maxGateEnabled(),

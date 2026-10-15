@@ -172,6 +172,34 @@ export default function ChatPanel({ room, cityName, returnPath, onPickCity, show
     const r = await post("/api/auth/miniapp", mini);
     if (!r.ok) setNote(r.error ?? "Не удалось войти."); else load();
   };
+  // Вход через MAX на обычном сайте: создаём код, человек открывает бота по ссылке (или отправляет ему код), бот подтверждает вход,
+  // а сайт каждые 2 секунды спрашивает, подтвердили ли.
+  const [maxLogin, setMaxLogin] = useState<{ link: string; code: string; minutes: number } | null>(null);
+  const startMaxLogin = async () => {
+    setNote(null);
+    try {
+      const r = await fetch("/api/auth/max/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) return setNote(j.error ?? "Не удалось начать вход через MAX.");
+      setMaxLogin({ link: j.link, code: j.code, minutes: j.minutes });
+    } catch { setNote("Нет соединения. Попробуйте позже."); }
+  };
+  useEffect(() => {
+    if (!maxLogin) return;
+    let alive = true;
+    const until = Date.now() + maxLogin.minutes * 60_000;
+    const tick = async () => {
+      try {
+        const r = await fetch("/api/auth/max/poll", { cache: "no-store" });
+        const j = await r.json().catch(() => ({}));
+        if (!alive) return;
+        if (j.state === "ok") { setMaxLogin(null); load(); return; }
+        if (j.state === "expired" || r.status >= 400 || Date.now() > until) { setMaxLogin(null); setNote(j.error ?? "Время входа вышло. Нажмите «MAX» ещё раз."); }
+      } catch { /* нет сети: попробуем при следующем опросе */ }
+    };
+    const id = setInterval(tick, 2000);
+    return () => { alive = false; clearInterval(id); };
+  }, [maxLogin, load]);
   const devLogin = async () => {
     await post("/api/auth/dev", { name: `Тест Тестов ${Math.floor(Math.random() * 90 + 10)}` });
     load();
@@ -274,10 +302,18 @@ export default function ChatPanel({ room, cityName, returnPath, onPickCity, show
           <div className={consent ? "login-btns" : "login-btns locked"} aria-disabled={!consent}>
             {p.yandex && <a className="lb yandex" href={`/api/auth/yandex/start?return=${ret}`}>Яндекс ID</a>}
             {p.vk && <a className="lb vk" href={`/api/auth/vk/start?return=${ret}`}>VK ID</a>}
-            {p.max && (mini?.provider === "max" ? <button className="lb max" onClick={loginMini}>MAX</button> : process.env.NEXT_PUBLIC_MAX_APP_URL ? <a className="lb max" href={process.env.NEXT_PUBLIC_MAX_APP_URL}>MAX</a> : null)}
+            {p.max && (mini?.provider === "max" ? <button className="lb max" onClick={loginMini}>MAX</button> : <button className="lb max" onClick={startMaxLogin} disabled={!consent || !!maxLogin}>MAX</button>)}
             {p.telegram && (mini?.provider === "telegram" ? <button className="lb tg" onClick={loginMini}>Telegram</button> : <div className="tg-widget" ref={tg} />)}
             {p.dev && <button className="lb dev" onClick={devLogin}>Тестовый вход</button>}
           </div>
+          {maxLogin && (
+            <div className="max-wait" role="status">
+              <p><Spinner size={16} /> Ждём подтверждения в MAX</p>
+              <a className="lb max" href={maxLogin.link} target="_blank" rel="noreferrer">Открыть бота в MAX</a>
+              <p className="note">Нажмите «Начать» в боте: вход подтвердится сам. Если бот не отреагировал, отправьте ему сообщение: <b>вход {maxLogin.code}</b></p>
+              <button className="link-btn" onClick={() => setMaxLogin(null)}>Отмена</button>
+            </div>
+          )}
           <p className="login-cap">Читать могут все. Вход нужен, чтобы писать и ставить реакции. Показываем только имя и первую букву фамилии. <Link href="/rules" target="_blank">Правила чата</Link></p>
         </div>
       )}
