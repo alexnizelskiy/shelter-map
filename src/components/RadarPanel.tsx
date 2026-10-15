@@ -88,7 +88,6 @@ export default function RadarPanel({ shown = true }: { shown?: boolean }) {
           })}
         </ul>
       )}
-      <p className="note radar-src">Источник: канал «Радар по всей России», <a href="https://t.me/radarrussiia" target="_blank" rel="noreferrer">t.me/radarrussiia</a>. Сообщения хранятся только последние сутки, реклама не показывается.{view?.updatedAt ? ` Обновлено ${new Date(view.updatedAt).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })}.` : ""}</p>
     </div>
   );
 }
