@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, BellOff, BellRing } from "lucide-react";
+import { Bell, BellOff, BellRing, X } from "lucide-react";
 import { usePref } from "@/lib/use-pref";
 import { PUSH_ASKED_KEY, PUSH_KEY, baseState, disablePush, enablePush, parseChoice, syncPush, type PushChoice, type PushState } from "@/lib/push-client";
 import Spinner from "./Spinner";
@@ -98,6 +98,33 @@ export function PushSettings({ regionName, city }: { regionName: string; city: s
     <div className="card push-settings">
       <h3><Bell size={16} /> Уведомления радара</h3>
       <PushPanel p={p} />
+    </div>
+  );
+}
+
+// Всплывающее окно на карте: когда человек уже появился на ней (определилось его местоположение), один раз предлагаем уведомления.
+// Согласился — «Радар» не спрашивает; закрыл или отказался — «Радар» предложит один раз сам.
+const MAP_ASKED_KEY = "map-push-asked";
+export function MapPushAsk({ regionName, city, ready }: { regionName: string; city: string; ready: boolean }) {
+  const p = usePush(regionName, city);
+  const [mapAsked, setMapAsked] = usePref(MAP_ASKED_KEY, "");
+  const [radarAsked, setRadarAsked] = usePref(PUSH_ASKED_KEY, "");
+  if (!ready || mapAsked || radarAsked || p.state !== "off") return null;
+  const choose = async (c: PushChoice) => { setMapAsked("1"); if (await p.enable(c)) setRadarAsked("1"); };
+  return (
+    <div className="loc-prompt glass" role="dialog" aria-label="Уведомления радара">
+      <button className="icon-btn" aria-label="Закрыть" onClick={() => setMapAsked("1")}><X size={16} /></button>
+      <span className="ico ico-amber"><Bell size={20} /></span>
+      <div className="loc-body">
+        <p className="loc-text"><b>Уведомления радара</b></p>
+        <p className="note" style={{ margin: 0 }}>Присылать новые сообщения об обстановке на телефон? Включить или отключить можно потом в настройках.</p>
+        <div className="loc-btns">
+          <button className="btn" disabled={p.busy} onClick={() => choose({ scope: "region", region: regionName })}>{regionName}</button>
+          <button className="btn btn-ghost-wide" disabled={p.busy} onClick={() => choose({ scope: "all", region: "" })}>Вся Россия</button>
+        </div>
+        <button className="link-btn" onClick={() => setMapAsked("1")}>Не сейчас</button>
+        {p.error && <p className="err" role="alert" style={{ margin: 0 }}>{p.error}</p>}
+      </div>
     </div>
   );
 }

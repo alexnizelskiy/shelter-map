@@ -1,5 +1,6 @@
 import { clean, json, readJson } from "@/lib/api-utils";
 import { dbConfigured } from "@/lib/db";
+import { isAdmin } from "@/lib/admin-auth";
 import { saveSubscription } from "@/lib/push";
 import { allowedEndpoint, safePath } from "@/lib/push-shared";
 
@@ -13,6 +14,6 @@ export async function POST(req: Request) {
   if (!allowedEndpoint(sub.endpoint) || !/^[A-Za-z0-9_-]{20,200}$/.test(p256dh) || !/^[A-Za-z0-9_-]{8,100}$/.test(auth)) return json({ error: "Некорректная подписка" }, 400);
   const region = clean(b?.region, 60);
   const scope = b?.scope === "all" || !region ? "all" : "region";
-  await saveSubscription({ endpoint: sub.endpoint, p256dh, auth, scope, region: scope === "all" ? "" : region, url: safePath(b?.url) });
+  await saveSubscription({ endpoint: sub.endpoint, p256dh, auth, scope, region: scope === "all" ? "" : region, url: safePath(b?.url), test: b?.test === true && (await isAdmin()) }); // тестовое устройство может пометить только администратор
   return json({ ok: true });
 }

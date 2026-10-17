@@ -1,6 +1,7 @@
 import { after, connection } from "next/server";
 import { clean, json } from "@/lib/api-utils";
 import { dbConfigured } from "@/lib/db";
+import { runDuePushes } from "@/lib/push";
 import { listRadar, radarEnabled, radarStatus, refreshRadar } from "@/lib/radar";
 
 // Лента «Радар» за последние сутки. ?region=Ростовская область — только этот регион; без параметра — вся Россия.
@@ -8,6 +9,7 @@ export async function GET(req: Request) {
   await connection(); // всегда динамически: иначе ответ запёкся бы при сборке
   if (!dbConfigured()) return json({ enabled: false, posts: [] });
   try {
+    after(() => runDuePushes().catch((e) => console.error("push campaigns", e))); // рассылки из админки запускаются от того же обращения cron
     if (!(await radarEnabled())) return json({ enabled: false, posts: [] });
     // Обновление не чаще раза в минуту. Если лента уже есть, отдаём её сразу, а свежее подтягиваем после ответа: страница не ждёт Telegram.
     // Первое заполнение (пустая лента) выполняется до ответа.

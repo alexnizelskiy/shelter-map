@@ -738,3 +738,10 @@ h1, h2, h3 { letter-spacing: -0.02em; }
 .push-offer-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .push-offer-btns .btn { border: 0; cursor: pointer; font-family: inherit; padding: 11px 6px; font-size: calc(13.5px * var(--fs, 1)); }
 .push-settings { padding: 14px; margin: 8px 0; display: grid; gap: 10px; }
+
+/* админка: расписание push-рассылок */
+.adm-fieldset { border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; display: grid; gap: 8px; margin: 0; }
+.adm-fieldset legend { padding: 0 6px; color: var(--muted); font-size: calc(13px * var(--fs, 1)); }
+.adm-radio { display: flex !important; flex-direction: row !important; gap: 8px; align-items: center; flex-wrap: wrap; font-size: calc(14px * var(--fs, 1)) !important; color: var(--fg) !important; }
+.adm-form textarea { width: 100%; }
+.donate-card { margin: 4px 0 10px; }

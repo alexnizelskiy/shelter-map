@@ -23,13 +23,14 @@ export default function LocationPrompt({ current, currentName, onChooseOther }: 
   const mounted = useSyncExternalStore(() => () => {}, () => true, () => false);
   const [hidden, setHidden] = useState(false);
   const recent = useRecent();
+  const [decided, setDecided] = useState(false); // город выбран прямо здесь: автопереход «в сохранённый город» не нужен
 
   // уже выбирали город: на главной ведём туда, но один раз за сессию (чтобы на главную всё же можно было вернуться)
   useEffect(() => {
-    if (!choice || current) return;
+    if (!choice || current || decided) return;
     try { if (sessionStorage.getItem("home-redirected")) return; sessionStorage.setItem("home-redirected", "1"); } catch { /* приватный режим */ }
     router.replace(`/${choice}`);
-  }, [choice, current, router]);
+  }, [choice, current, decided, router]);
 
   // на странице города без сохранённого выбора запоминаем её как выбранную (человек пришёл сюда сам или по ссылке)
   useEffect(() => {
@@ -74,16 +75,17 @@ export default function LocationPrompt({ current, currentName, onChooseOther }: 
   };
 
   // на странице города окно показываем, только когда нашёлся другой город; на главной — всегда, пока человек не ответил
-  if (!mounted || confirmed || hidden) return null;
+  if (!mounted) return null;
+  if (confirmed || hidden) return null;
   if (current && state.kind !== "found") return null;
 
-  const answer = (slug: string) => { setChoice(slug); setConfirmed("1"); setHidden(true); };
+  const answer = (slug: string) => { setDecided(true); setChoice(slug); setConfirmed("1"); setHidden(true); };
   const confirm = (place: PlaceResult) => {
-    answer(place.slug);
+    setDecided(true); setChoice(place.slug); setConfirmed("1"); setHidden(true);
     recent.add(place);
     if (place.slug !== current) router.push(`/${place.slug}`);
   };
-  const close = () => { if (current && !choice) setChoice(current); setConfirmed("1"); setHidden(true); };
+  const close = () => { setDecided(true); if (current && !choice) setChoice(current); setConfirmed("1"); setHidden(true); };
 
   return (
     <div className="loc-prompt glass" role="dialog" aria-label="Подтверждение местоположения">

@@ -268,6 +268,31 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
   last_ok    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+ALTER TABLE push_subscriptions ADD COLUMN IF NOT EXISTS test BOOLEAN NOT NULL DEFAULT false;
+
+-- Рассылки push-уведомлений, созданные в админке: что, кому и по какому расписанию (время московское)
+CREATE TABLE IF NOT EXISTS push_campaigns (
+  id              BIGSERIAL PRIMARY KEY,
+  title           TEXT NOT NULL,
+  body            TEXT NOT NULL,
+  url             TEXT NOT NULL DEFAULT '/',
+  audience_region TEXT,
+  repeat_kind     TEXT NOT NULL DEFAULT 'none' CHECK (repeat_kind IN ('none','interval','daily','weekly')),
+  every_minutes   INT,
+  time_of_day     TEXT,
+  weekdays        INT[],
+  next_run_at     TIMESTAMPTZ,
+  end_at          TIMESTAMPTZ,
+  max_runs        INT,
+  runs            INT NOT NULL DEFAULT 0,
+  last_run_at     TIMESTAMPTZ,
+  last_sent       INT,
+  last_failed     INT,
+  status          TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','paused','done')),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS push_campaigns_due_idx ON push_campaigns (status, next_run_at);
+
 -- Рассылки уведомлений через ботов
 CREATE TABLE IF NOT EXISTS broadcasts (
   id          BIGSERIAL PRIMARY KEY,

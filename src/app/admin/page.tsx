@@ -17,6 +17,7 @@ import Bot from "./Bot";
 import Stats from "./Stats";
 import Broadcast from "./Broadcast";
 import RadarAdmin from "./RadarAdmin";
+import PushAdmin from "./PushAdmin";
 import { operator } from "@/lib/operator";
 
 export const metadata: Metadata = { title: "Модерация", robots: { index: false, follow: false } };
@@ -33,7 +34,7 @@ export default function AdminPage({ searchParams }: { searchParams: SP }) {
   );
 }
 
-const TABS = [["new", "Заявки"], ["need_info", "Уточнение"], ["problems", "Жалобы"], ["hidden", "Скрытые"], ["photos", "Фото"], ["access", "Доступность"], ["stats", "Статистика"], ["broadcast", "Рассылка"], ["radar", "Радар"], ["bot", "Боты"], ["chat", "Чат"], ["requests", "Запросы"], ["done", "Обработанные"], ["cities", "Города и точки"]] as const;
+const TABS = [["new", "Заявки"], ["need_info", "Уточнение"], ["problems", "Жалобы"], ["hidden", "Скрытые"], ["photos", "Фото"], ["access", "Доступность"], ["stats", "Статистика"], ["broadcast", "Рассылка"], ["radar", "Радар"], ["push", "Пуши"], ["bot", "Боты"], ["chat", "Чат"], ["requests", "Запросы"], ["done", "Обработанные"], ["cities", "Города и точки"]] as const;
 
 async function Content({ searchParams }: { searchParams: SP }) {
   await connection();
@@ -72,7 +73,7 @@ async function Content({ searchParams }: { searchParams: SP }) {
           </a>
         ))}
       </nav>
-      {tab === "radar" ? <RadarAdmin /> : tab === "stats" ? <Stats label={sp.label} /> : tab === "broadcast" ? <Broadcast result={sp.result} run={sp.run} test={sp.test} /> : tab === "bot" ? <Bot result={sp.result} /> : tab === "access" ? <Access all={all} q={sp.q ?? ""} /> : tab === "requests" ? <Requests /> : tab === "chat" ? <Chat /> : tab === "photos" ? <Photos byId={byId} /> : tab === "cities" ? <Cities /> : tab === "problems" ? <Problems byId={byId} /> : tab === "hidden" ? <Hidden byId={byId} /> : <Suggestions state={tab} all={all} />}
+      {tab === "push" ? <PushAdmin result={sp.result} /> : tab === "radar" ? <RadarAdmin /> : tab === "stats" ? <Stats label={sp.label} /> : tab === "broadcast" ? <Broadcast result={sp.result} run={sp.run} test={sp.test} /> : tab === "bot" ? <Bot result={sp.result} /> : tab === "access" ? <Access all={all} q={sp.q ?? ""} /> : tab === "requests" ? <Requests /> : tab === "chat" ? <Chat /> : tab === "photos" ? <Photos byId={byId} /> : tab === "cities" ? <Cities /> : tab === "problems" ? <Problems byId={byId} /> : tab === "hidden" ? <Hidden byId={byId} /> : <Suggestions state={tab} all={all} />}
     </>
   );
 }

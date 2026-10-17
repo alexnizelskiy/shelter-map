@@ -19,6 +19,7 @@ import ThemeSwitch from "./ThemeSwitch";
 import AccessibilitySettings from "./AccessibilitySettings";
 import CitySearch from "./CitySearch";
 import LocationPrompt from "./LocationPrompt";
+import { MapPushAsk } from "./PushControl";
 import Checklist from "./Checklist";
 import AccessBlock from "./AccessBlock";
 import MyShelterButton from "./MyShelterButton";
@@ -26,7 +27,7 @@ import OfflineSettings from "./OfflineSettings";
 import ChatPanel from "./ChatPanel";
 import RadarPanel from "./RadarPanel";
 import { PushSettings } from "./PushControl";
-import ContactBlock from "./ContactBlock";
+import ContactBlock, { DonateBlock } from "./ContactBlock";
 import { DocsView, FaqView, HelpView, ProfileLinks, type SubView } from "./ProfileViews";
 import { bumpHelp } from "@/lib/my-help";
 import Spinner from "./Spinner";
@@ -406,6 +407,7 @@ export default function CityView({ city: city0, shelters: shelters0 }: { city: C
       )}
 
       <LocationPrompt current={city.slug} currentName={city.name} onChooseOther={() => setSearchOpen(true)} />
+      <MapPushAsk ready={!!me} regionName={city.region || "Ростовская область"} city={city.slug} />
 
       <aside className="side" data-sheet={sheetOpen || undefined}>
         <section className="panel glass" data-tab={tab} data-search={searchOpen || undefined} data-sheet={sheetOpen || undefined} data-info={infoOpen || undefined} data-sub={(tab === "settings" && sub) || undefined} data-dir={dir}>
@@ -510,6 +512,7 @@ export default function CityView({ city: city0, shelters: shelters0 }: { city: C
           {!searchOpen && tab === "settings" && !sub && (
             <div className="about">
               <div className="large-title"><h2>Настройки</h2></div>
+              <DonateBlock />
               <ProfileLinks onOpen={setSub} />
               <PushSettings regionName={city.region || "Ростовская область"} city={city.slug} />
               <h2 style={{ display: "flex", gap: 8, alignItems: "center" }}><Palette size={16} />Оформление</h2>

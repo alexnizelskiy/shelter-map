@@ -4,6 +4,30 @@ import { useState } from "react";
 import { Globe, HeartHandshake, Send, Share2 } from "lucide-react";
 import { DONATE_URL, MAX_CHANNEL_URL, SHARE_TEXT, TG_CHANNEL_URL } from "@/lib/links";
 
+// Просьба о поддержке: суммы и ссылка на страницу пожертвований (используется отдельно и внутри «Мы на связи»)
+function DonateBody() {
+  return (
+    <>
+      <h4><HeartHandshake size={17} />Поддержать проект</h4>
+      <p className="note">Карта бесплатна и останется такой: мы на ней не зарабатываем. Пожертвования идут на серверы, трафик и защиту от атак. Они добровольные и ничего не дают взамен.</p>
+      <div className="donate-amounts">
+        {[100, 300, 500].map((n) => <a key={n} href={`${DONATE_URL}?amount=${n}`} target="_blank" rel="noreferrer">{n} ₽</a>)}
+        <a href={DONATE_URL} target="_blank" rel="noreferrer">Другая</a>
+      </div>
+      <p className="note"><Globe size={13} style={{ verticalAlign: "-2px" }} /> Оплата на странице сервиса CloudTips: СБП или карта.</p>
+    </>
+  );
+}
+
+// Отдельная карточка «Поддержать проект» (первый блок в настройках)
+export function DonateBlock() {
+  return (
+    <section className="contact donate-card" aria-label="Поддержать проект">
+      <DonateBody />
+    </section>
+  );
+}
+
 // «Мы на связи»: каналы в MAX и Telegram, кнопка «Поделиться картой» и добровольные пожертвования
 export default function ContactBlock({ compact = false }: { compact?: boolean }) {
   const [copied, setCopied] = useState(false);
@@ -37,13 +61,7 @@ export default function ContactBlock({ compact = false }: { compact?: boolean })
       {copied && <p className="note ok-note" role="status">Ссылка скопирована</p>}
 
       <div className="donate">
-        <h4><HeartHandshake size={17} />Поддержать проект</h4>
-        <p className="note">Карта бесплатна и останется такой: мы на ней не зарабатываем. Пожертвования идут на серверы, трафик и защиту от атак. Они добровольные и ничего не дают взамен.</p>
-        <div className="donate-amounts">
-          {[100, 300, 500].map((n) => <a key={n} href={`${DONATE_URL}?amount=${n}`} target="_blank" rel="noreferrer">{n} ₽</a>)}
-          <a href={DONATE_URL} target="_blank" rel="noreferrer">Другая</a>
-        </div>
-        <p className="note"><Globe size={13} style={{ verticalAlign: "-2px" }} /> Оплата на странице сервиса CloudTips: СБП или карта.</p>
+        <DonateBody />
       </div>
     </section>
   );

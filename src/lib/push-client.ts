@@ -34,7 +34,7 @@ const b64 = (s: string) => {
 export type PushResult = { ok: true } | { ok: false; reason: "denied" | "unsupported" | "server" | "error" };
 
 // Включить или изменить выбор: запрашивает разрешение (только по нажатию человека), подписывает устройство и сообщает серверу
-export async function enablePush(choice: PushChoice, url: string): Promise<PushResult> {
+export async function enablePush(choice: PushChoice, url: string, test = false): Promise<PushResult> {
   if (!pushSupported()) return { ok: false, reason: "unsupported" };
   try {
     const perm = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
@@ -44,7 +44,7 @@ export async function enablePush(choice: PushChoice, url: string): Promise<PushR
     const reg = await navigator.serviceWorker.ready;
     let sub = await reg.pushManager.getSubscription();
     if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64(cfg.publicKey) as BufferSource });
-    const r = await fetch("/api/push/subscribe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ subscription: sub.toJSON(), scope: choice.scope, region: choice.region, url }) });
+    const r = await fetch("/api/push/subscribe", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ subscription: sub.toJSON(), scope: choice.scope, region: choice.region, url, test }) });
     if (!r.ok) return { ok: false, reason: "server" };
     writePref(PUSH_KEY, JSON.stringify(choice));
     return { ok: true };

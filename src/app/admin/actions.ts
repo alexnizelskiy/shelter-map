@@ -12,6 +12,9 @@ import { maxApi, maxWebhookSecret } from "@/lib/max";
 import { isHttps, MAX_TEXT, sendOne } from "@/lib/broadcast";
 import { cleanSource } from "@/lib/bot-users";
 import { refreshRadar } from "@/lib/radar";
+import { runDuePushes, sendCampaign } from "@/lib/push";
+import { safePath } from "@/lib/push-shared";
+import { firstRun, parseMsk, parseTime, type Schedule } from "@/lib/push-campaign";
 import { clean } from "@/lib/api-utils";
 import { clientIpFromHeaders } from "@/lib/proxy-trust";
 import { createHash } from "node:crypto";
@@ -382,4 +385,90 @@ export async function hideRadarPost(form: FormData) {
   const id = Number(form.get("id"));
   if (Number.isInteger(id) && id > 0) await sql()`UPDATE radar_posts SET hidden = true WHERE id = ${id}`;
   revalidatePath("/admin");
+}
+
+// ───── push-рассылки из админки ─────
+const campaignRedirect = (result: string) => redirect(`/admin?tab=push&result=${encodeURIComponent(result)}`);
+
+export async function createPushCampaign(form: FormData) {
+  await guard();
+  const title = clean(form.get("title"), 60);
+  const body = String(form.get("body") ?? "").replace(/\s+/g, " ").trim().slice(0, 240);
+  const url = safePath(String(form.get("url") ?? "/").trim() || "/");
+  const audience = String(form.get("audience") ?? "__all");
+  const audienceRegion = audience === "__all" ? null : clean(audience, 60) || null;
+  const mode = String(form.get("mode") ?? "now");
+  if (title.length < 2) return campaignRedirect("err Укажите заголовок (от 2 знаков)");
+  if (body.length < 3) return campaignRedirect("err Укажите текст уведомления");
+
+  const sendAt = parseMsk(form.get("send_at"));
+  const endAt = parseMsk(form.get("end_at"));
+  const maxRaw = Number(form.get("max_runs"));
+  const maxRuns = Number.isInteger(maxRaw) && maxRaw >= 1 ? Math.min(maxRaw, 1000) : null;
+  let schedule: Schedule = { repeat: "none", every_minutes: null, time_of_day: null, weekdays: null };
+  let start: Date | null = null;
+  if (mode === "at") {
+    if (!sendAt) return campaignRedirect("err Укажите дату и время отправки (по Москве)");
+    if (sendAt.getTime() < Date.now() - 60_000) return campaignRedirect("err Это время уже прошло");
+    start = sendAt;
+  } else if (mode === "interval") {
+    const n = Number(form.get("every"));
+    const unit = String(form.get("unit"));
+    const minutes = Math.round(n * (unit === "d" ? 1440 : unit === "h" ? 60 : 1));
+    if (!Number.isFinite(minutes) || minutes < 15 || minutes > 60 * 1440) return campaignRedirect("err Периодичность: от 15 минут до 60 дней");
+    schedule = { repeat: "interval", every_minutes: minutes, time_of_day: null, weekdays: null };
+    start = sendAt;
+  } else if (mode === "daily" || mode === "weekly") {
+    const time = parseTime(form.get("time"));
+    if (!time) return campaignRedirect("err Укажите время рассылки (часы:минуты по Москве)");
+    const days = [1, 2, 3, 4, 5, 6, 7].filter((d) => form.get(`wd_${d}`) === "1");
+    if (mode === "weekly" && !days.length) return campaignRedirect("err Выберите хотя бы один день недели");
+    schedule = { repeat: mode, every_minutes: null, time_of_day: time, weekdays: mode === "weekly" ? days : null };
+    start = sendAt;
+  } else if (mode !== "now") return campaignRedirect("err Неизвестный вид расписания");
+
+  const next = firstRun(schedule, start, new Date());
+  if (!next) return campaignRedirect("err Не удалось вычислить время отправки");
+  if (endAt && endAt.getTime() <= next.getTime()) return campaignRedirect("err Дата окончания раньше первой отправки");
+  await sql()`INSERT INTO push_campaigns (title, body, url, audience_region, repeat_kind, every_minutes, time_of_day, weekdays, next_run_at, end_at, max_runs)
+    VALUES (${title}, ${body}, ${url}, ${audienceRegion}, ${schedule.repeat}, ${schedule.every_minutes}, ${schedule.time_of_day}, ${schedule.weekdays}, ${next}, ${endAt}, ${maxRuns})`;
+  if (mode === "now") await runDuePushes().catch((e) => console.error("push now", e));
+  revalidatePath("/admin");
+  campaignRedirect("ok");
+}
+
+export async function setCampaignStatus(form: FormData) {
+  await guard();
+  const id = Number(form.get("id"));
+  const action = String(form.get("action"));
+  if (!Number.isInteger(id)) return;
+  const [c] = await sql()<{ repeat_kind: Schedule["repeat"]; every_minutes: number | null; time_of_day: string | null; weekdays: number[] | null; end_at: Date | null; max_runs: number | null; runs: number }[]>`SELECT repeat_kind, every_minutes, time_of_day, weekdays, end_at, max_runs, runs FROM push_campaigns WHERE id = ${id}`;
+  if (!c) return;
+  if (action === "pause") await sql()`UPDATE push_campaigns SET status = 'paused' WHERE id = ${id} AND status = 'active'`;
+  else if (action === "resume") {
+    const s: Schedule = { repeat: c.repeat_kind, every_minutes: c.every_minutes, time_of_day: c.time_of_day, weekdays: c.weekdays };
+    const next = firstRun(s, null, new Date());
+    const ended = c.end_at && next && next.getTime() > c.end_at.getTime();
+    if (next && !ended) await sql()`UPDATE push_campaigns SET status = 'active', next_run_at = ${next}${c.max_runs !== null && c.runs >= c.max_runs ? sql()`, runs = 0` : sql()``} WHERE id = ${id}`;
+  }
+  revalidatePath("/admin");
+}
+
+export async function deleteCampaign(form: FormData) {
+  await guard();
+  const id = Number(form.get("id"));
+  if (Number.isInteger(id)) await sql()`DELETE FROM push_campaigns WHERE id = ${id}`;
+  revalidatePath("/admin");
+}
+
+// Разовая отправка по запросу: всем (по аудитории рассылки) или только на тестовые устройства; расписание не меняется
+export async function sendCampaignNowAction(form: FormData) {
+  await guard();
+  const id = Number(form.get("id"));
+  const test = form.get("test") === "1";
+  const [c] = await sql()<{ id: string; title: string; body: string; url: string; audience_region: string | null }[]>`SELECT id::text, title, body, url, audience_region FROM push_campaigns WHERE id = ${id}`;
+  if (!c) return campaignRedirect("err Рассылка не найдена");
+  const r = await sendCampaign(c, test).catch((e) => ({ sent: 0, failed: 0, error: e instanceof Error ? e.message : String(e) }));
+  if ("error" in r) return campaignRedirect(`err ${r.error}`.slice(0, 200));
+  campaignRedirect(`ok ${test ? "Тест" : "Отправлено"}: доставлено ${r.sent}, не доставлено ${r.failed}`);
 }
